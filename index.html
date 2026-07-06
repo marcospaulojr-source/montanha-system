@@ -175,7 +175,8 @@ button{font-family:inherit}
 <body>
 <aside class="side">
   <div class="brand">
-    <div class="logo" id="brandLogo">A</div>
+    <div class="logo" id="brandLogo" onclick="document.getElementById('brandLogoFile').click()" title="Clique para alterar a logo" style="cursor:pointer">A</div>
+    <input type="file" id="brandLogoFile" accept="image/*" style="display:none" onchange="uploadBrandLogo(event)">
     <div><div class="n" id="brandName">Cliente</div><div class="s" id="brandSub">Painel de Conteúdo</div></div>
   </div>
   <div class="cliSel">
@@ -275,6 +276,13 @@ function applyBrand(){
   else{bl.textContent=b.logo||'A';bl.style.background=b.accent}
   $('#brandName').textContent=b.name;$('#brandSub').textContent=b.sub;
 }
+function uploadBrandLogo(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{cur().brand.logoImg=r.result;applyBrand();save();toast('Logo atualizada ✓')};
+  r.readAsDataURL(f);
+  e.target.value='';
+}
 function renderClientSelect(){
   $('#cliSelect').innerHTML=store.clients.map(c=>`<option value="${c.id}" ${c.id===store.current?'selected':''}>${esc(c.brand.name)}</option>`).join('');
 }
@@ -290,7 +298,7 @@ function miniDots(est){
   return `<div class="dots">${STAGES.map((s,i)=>`<i class="${i<si?'done':i===si?'cur':''}" title="${s[1]}"></i>`).join('')}<span class="lbl-cur" style="color:${STAGE_COLOR[est]}">${shortLab(est)}</span></div>`;
 }
 function stagePct(est){const si=STAGES.findIndex(s=>s[0]===est);return Math.round(si/(STAGES.length-1)*100);}
-function thumbInner(v,icon){return v.logo?`<img src="${v.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:icon}
+function thumbInner(icon){const b=cur().brand;return b.logoImg?`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:icon}
 function render(){
   const c=cur();applyBrand();renderClientSelect();
   const V=c.videos;
@@ -308,25 +316,25 @@ function render(){
   $('#prodTag').textContent=V.length+' peças';
   $('#dashList').innerHTML=V.length?V.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
-      <div class="prow-top"><div class="thumb">${thumbInner(v,'▶')}</div>
+      <div class="prow-top"><div class="thumb">${thumbInner('▶')}</div>
         <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}</div></div>
         <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v.estagio)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
   $('#modsN').textContent=mods.length;
   $('#dashMods').innerHTML=mods.length?mods.map(v=>`
-    <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${v.logo?'':'background:linear-gradient(135deg,#E11D48,#BE123C)'}">${thumbInner(v,'✎')}</div>
+    <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,#E11D48,#BE123C)'}">${thumbInner('✎')}</div>
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">${v.mods?esc(v.mods):'Sem detalhes registrados'}</div></div><span class="st" style="color:#E11D48">Ver →</span></div>`).join('')
     :'<div class="empty">Nenhuma modificação pendente.</div>';
   $('#dashApr').innerHTML=pend.length?pend.map(v=>`
-    <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${v.logo?'':'background:linear-gradient(135deg,var(--amber),var(--accent))'}">${thumbInner(v,'⏳')}</div>
+    <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,var(--amber),var(--accent))'}">${thumbInner('⏳')}</div>
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Aguardando aprovação</div></div><span class="st" style="color:var(--amber)">Revisar →</span></div>`).join('')
     :'<div class="empty">Tudo aprovado. 🎉</div>';
   $('#board').innerHTML=STAGES.map(([k,lab])=>{
     const vs=V.filter(v=>v.estagio===k);
     return `<div class="col" data-stage="${k}"><h3><span class="stagedot" style="background:${STAGE_COLOR[k]}"></span>${lab}<span class="ct">${vs.length}</span></h3>
       ${vs.map(v=>`<div class="vcard stage-${k}" draggable="true" data-id="${v.id}" onclick="openV('${v.id}')">
-        <div class="vhead">${v.logo?`<img class="vlogo" src="${v.logo}">`:''}<div class="vt">${esc(v.titulo)}</div></div>
+        <div class="vhead">${c.brand.logoImg?`<img class="vlogo" src="${c.brand.logoImg}">`:''}<div class="vt">${esc(v.titulo)}</div></div>
         ${v.cliente?`<div class="vcli">${esc(v.cliente)}</div>`:''}
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}</span></div>${miniDots(v.estagio)}</div>`).join('')}</div>`;
   }).join('');
@@ -386,12 +394,6 @@ function openV(id){
   openModal(`<div class="mtop"><h3>Detalhe do vídeo</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
       <div class="fld"><label>Nome do cliente</label><input id="e_cliente" value="${esc(v.cliente)}" placeholder="Ex: Transcouto Transportes"></div>
-      <div class="fld"><label>Logo/Foto do cliente</label>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div id="logoPreview" data-logo="${v.logo?esc(v.logo):''}" style="width:44px;height:44px;border-radius:9px;overflow:hidden;background:#F1F5F9;display:grid;place-items:center;flex-shrink:0">${v.logo?`<img src="${v.logo}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:10px;color:var(--muted)">sem foto</span>'}</div>
-          <input type="file" accept="image/*" id="e_logo_input" onchange="previewLogo(event)" style="flex:1">
-        </div>
-      </div>
       <div class="fld"><label>Título</label><input id="e_titulo" value="${esc(v.titulo)}"></div>
       <div class="fld"><label>Objetivo</label><select id="e_obj">${Object.entries(OBJ).map(([k,l])=>`<option value="${k}" ${k===v.objetivo?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="frow">
@@ -414,16 +416,9 @@ function addVideo(){
   cur().videos.push(v);openV(v.id);
 }
 function toggleModsFld(est){$('#fld_mods').style.display=est==='modificacoes'?'':'none'}
-function previewLogo(e){
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{const p=$('#logoPreview');p.innerHTML=`<img src="${r.result}" style="width:100%;height:100%;object-fit:cover">`;p.dataset.logo=r.result};
-  r.readAsDataURL(f);
-}
 function saveV(id){
   const v=cur().videos.find(x=>x.id===id);
   v.cliente=$('#e_cliente').value.trim();
-  v.logo=$('#logoPreview').dataset.logo||'';
   v.titulo=$('#e_titulo').value.trim()||'(sem título)';v.objetivo=$('#e_obj').value;
   v.inicio=$('#e_inicio').value||'';v.entrega=$('#e_entrega').value||'';
   v.estagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
@@ -446,28 +441,16 @@ function openSettings(){
   openModal(`<div class="mtop"><h3>Marca & configurações</h3><span class="x" onclick="closeM()">✕</span></div><div class="mb">
     <div class="fld"><label>Nome do cliente</label><input id="b_name" value="${esc(b.name)}"></div>
     <div class="fld"><label>Subtítulo</label><input id="b_sub" value="${esc(b.sub)}"></div>
-    <div class="fld"><label>Logo/Foto (substitui a inicial)</label>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div id="brandLogoPreview" data-logo="${b.logoImg?esc(b.logoImg):''}" style="width:44px;height:44px;border-radius:10px;overflow:hidden;background:#F1F5F9;display:grid;place-items:center;flex-shrink:0">${b.logoImg?`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:10px;color:var(--muted)">sem foto</span>'}</div>
-        <input type="file" accept="image/*" onchange="previewBrandLogo(event)" style="flex:1">
-        ${b.logoImg?`<button type="button" onclick="clearBrandLogo()" style="all:unset;cursor:pointer;font-size:11px;color:#DC2626;font-weight:600;white-space:nowrap">Remover</button>`:''}
-      </div>
-    </div>
-    <div class="frow"><div class="fld"><label>Inicial do logo</label><input id="b_logo" value="${esc(b.logo)}" maxlength="2"></div>
-    <div class="fld"><label>Cor de destaque</label><input id="b_accent" value="${b.accent}"></div></div>
+    <div class="fld"><label>Inicial do logo (usada se não houver foto)</label><input id="b_logo" value="${esc(b.logo)}" maxlength="2"></div>
+    ${b.logoImg?`<button type="button" onclick="clearBrandLogo()" style="all:unset;cursor:pointer;font-size:12px;color:#DC2626;font-weight:600;display:block;margin-bottom:14px">Remover foto atual (voltar para inicial)</button>`:''}
+    <div class="fld"><label>Cor de destaque</label><input id="b_accent" value="${b.accent}"></div>
     <div class="fld"><label>Cores rápidas</label><div class="color-row">${SWATCHES.map(s=>`<div class="sw ${s===b.accent?'on':''}" style="background:${s}" onclick="document.getElementById('b_accent').value='${s}';document.querySelectorAll('.sw').forEach(x=>x.classList.remove('on'));this.classList.add('on')"></div>`).join('')}</div></div>
     <div class="fld"><label>Google Client ID (integração Google Agenda)</label><input id="b_gcid" value="${esc(store.gcalClientId||'')}" placeholder="xxxxx.apps.googleusercontent.com"></div>
     <button class="msave" onclick="saveSettings()">Salvar</button>
     <button class="mdel" onclick="delClient()">Excluir este cliente</button></div>`);
 }
-function previewBrandLogo(e){
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{const p=$('#brandLogoPreview');p.innerHTML=`<img src="${r.result}" style="width:100%;height:100%;object-fit:cover">`;p.dataset.logo=r.result};
-  r.readAsDataURL(f);
-}
-function clearBrandLogo(){const p=$('#brandLogoPreview');p.innerHTML='<span style="font-size:10px;color:var(--muted)">sem foto</span>';p.dataset.logo=''}
-function saveSettings(){const b=cur().brand;b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';b.logoImg=$('#brandLogoPreview').dataset.logo||'';store.gcalClientId=$('#b_gcid').value.trim();closeM();render();toast('Marca atualizada ✓')}
+function clearBrandLogo(){cur().brand.logoImg='';closeM();render();openSettings();toast('Foto removida ✓')}
+function saveSettings(){const b=cur().brand;b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';store.gcalClientId=$('#b_gcid').value.trim();closeM();render();toast('Marca atualizada ✓')}
 
 function switchClient(id){store.current=id;calDate=new Date();render();go('dash')}
 function newClient(){const name=prompt('Nome do novo cliente:');if(!name)return;const c=seedClient(name);store.clients.push(c);store.current=c.id;render();go('dash');toast('Cliente criado ✓')}
