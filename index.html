@@ -96,6 +96,10 @@ button{font-family:inherit}
 .finperiod-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border-bottom:1px solid var(--line)}
 .fp-in{color:var(--green);font-weight:700}
 .fp-out{color:#E11D48;font-weight:700}
+.fintabs{display:flex;gap:6px;flex-wrap:wrap;padding:12px 19px;border-bottom:1px solid var(--line)}
+.fintab{all:unset;cursor:pointer;font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;background:#F1F5F9;color:var(--muted)}
+.fintab:hover{background:#E2E8F0}
+.fintab.on{background:var(--accent);color:#fff}
 .vcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:9px;cursor:grab;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:.15s;border-left:3px solid var(--steel)}
 .vcard:hover{transform:translateY(-2px);box-shadow:var(--sh)}
 .vcard.dragging{opacity:.5}
@@ -438,7 +442,17 @@ function renderFin(){
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${fmtBRL(aReceber)} / ${fmtBRL(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const sorted=F.slice().sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''));
-  $('#finList').innerHTML=sorted.length?sorted.map(f=>{
+  const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const monthKeys=[...new Set(F.filter(f=>f.vencimento).map(f=>f.vencimento.slice(0,7)))].sort().reverse();
+  if(finFilter!=='all'&&finFilter!=='sem'&&!monthKeys.includes(finFilter))finFilter='all';
+  const semData=F.some(f=>!f.vencimento);
+  const tabsHtml=`<div class="fintabs">
+    <button class="fintab ${finFilter==='all'?'on':''}" onclick="setFinFilter('all')">Todos</button>
+    ${monthKeys.map(k=>{const[yy,mm]=k.split('-');return `<button class="fintab ${finFilter===k?'on':''}" onclick="setFinFilter('${k}')">${MESES_ABR[parseInt(mm)-1]}/${yy}</button>`}).join('')}
+    ${semData?`<button class="fintab ${finFilter==='sem'?'on':''}" onclick="setFinFilter('sem')">Sem data</button>`:''}
+  </div>`;
+  const filtered=finFilter==='all'?sorted:finFilter==='sem'?sorted.filter(f=>!f.vencimento):sorted.filter(f=>f.vencimento&&f.vencimento.slice(0,7)===finFilter);
+  $('#finList').innerHTML=tabsHtml+(filtered.length?filtered.map(f=>{
     const st=finStatus(f);
     const stColor=st==='pago'?'var(--green)':st==='atrasado'?'#E11D48':'var(--amber)';
     const stLabel=st==='pago'?'Pago':st==='atrasado'?'Atrasado':'Pendente';
@@ -450,8 +464,10 @@ function renderFin(){
         <span class="stagechip" style="background:${stColor}">${stLabel}</span></div>
       <div class="finval" style="color:${isIn?'var(--green)':'#E11D48'}">${isIn?'+ ':'− '}${fmtBRL(f.valor)}</div>
     </div>`;
-  }).join(''):'<div class="empty">Nenhum lançamento. Clique em "＋ Novo lançamento".</div>';
+  }).join(''):'<div class="empty">Nenhum lançamento neste período.</div>');
 }
+let finFilter='all';
+function setFinFilter(k){finFilter=k;renderFin()}
 
 function bindDrag(){
   let dragId=null;
