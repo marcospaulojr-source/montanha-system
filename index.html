@@ -241,7 +241,7 @@ button{font-family:inherit}
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
-      <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span></h2><div class="plist" id="finList"></div></div>
+      <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
     </section>
   </div>
 </div>
@@ -635,6 +635,11 @@ function delFin(id){
   if(!confirm('Excluir este lançamento?'))return;
   store.financeiro=store.financeiro.filter(x=>x.id!==id);
   closeM();render();toast('Lançamento excluído');
+}
+function clearFinanceiro(){
+  if(!confirm('Isso vai apagar TODOS os lançamentos (entradas e saídas) registrados até agora. O saldo inicial definido não é afetado. Confirma?'))return;
+  store.financeiro=[];
+  render();toast('Lançamentos limpos ✓');
 }
 
 function siRowHtml(si){
