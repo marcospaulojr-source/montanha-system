@@ -46,7 +46,7 @@ button{font-family:inherit}
 .view{display:none;animation:fade .3s ease}
 .view.on{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 19px;box-shadow:var(--sh)}
 .stat .lab{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:7px}
 .stat .num{font-size:29px;font-weight:800;margin-top:7px;letter-spacing:-.02em}
@@ -276,11 +276,13 @@ function render(){
   const V=c.videos;
   const prod=V.filter(v=>['agendado','roteiro','captacao','edicao','modificacoes'].includes(v.estagio));
   const pend=V.filter(v=>v.estagio==='aprovacao');
+  const mods=V.filter(v=>v.estagio==='modificacoes');
   // próxima entrega (data futura mais próxima entre os não concluídos)
   const futuras=V.filter(v=>!['publicado','finalizado'].includes(v.estagio)&&v.entrega).map(v=>v.entrega).sort();
   const prox=futuras.find(d=>d>=todayISO())||futuras[0];
   $('#stats').innerHTML=`
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--blue)"></span>Em produção</div><div class="num">${prod.length}</div><div class="delta">agendado · roteiro · captação · edição · modificações</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Modificações</div><div class="num">${mods.length}</div><div class="delta">${mods.length?'aguardando ajuste':'nenhuma pendente'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>Aguard. aprovação</div><div class="num">${pend.length}</div><div class="delta">${pend.length?'ação necessária':'tudo em dia'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--accent)"></span>Próxima entrega</div><div class="num" style="font-size:22px">${prox?fmtD(prox):'—'}</div><div class="delta">data de entrega mais próxima</div></div>`;
   $('#prodTag').textContent=V.length+' peças';
@@ -291,7 +293,6 @@ function render(){
         <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="st">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v.estagio)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
-  const mods=V.filter(v=>v.estagio==='modificacoes');
   $('#modsN').textContent=mods.length;
   $('#dashMods').innerHTML=mods.length?mods.map(v=>`
     <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="background:linear-gradient(135deg,#E11D48,#BE123C)">✎</div>
