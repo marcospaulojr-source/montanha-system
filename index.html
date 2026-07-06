@@ -90,6 +90,7 @@ button{font-family:inherit}
 .stagedot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .stagechip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;white-space:nowrap}
 .cliname{font-size:12.5px;font-weight:700;color:var(--steel);margin-bottom:2px}
+.finval{font-size:16px;font-weight:800;text-align:right}
 .vcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:9px;cursor:grab;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:.15s;border-left:3px solid var(--steel)}
 .vcard:hover{transform:translateY(-2px);box-shadow:var(--sh)}
 .vcard.dragging{opacity:.5}
@@ -189,6 +190,7 @@ button{font-family:inherit}
     <button data-v="dash" class="on"><span class="ic">▤</span><span class="lbl">Dashboard</span></button>
     <button data-v="pipe"><span class="ic">▦</span><span class="lbl">Pipeline</span></button>
     <button data-v="cal"><span class="ic">▧</span><span class="lbl">Calendário</span></button>
+    <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -223,6 +225,10 @@ button{font-family:inherit}
         <div class="bd" id="calBody"></div>
       </div>
     </section>
+    <section class="view" id="fin">
+      <div class="stats" id="finStats"></div>
+      <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span></h2><div class="plist" id="finList"></div></div>
+    </section>
   </div>
 </div>
 
@@ -233,6 +239,9 @@ button{font-family:inherit}
 const OBJ={autoridade:'Autoridade',captacao:'Captação',redes_sociais:'Redes Sociais',institucional:'Institucional',reuniao:'Reunião'};
 const STAGES=[['agendado','Agendado'],['roteiro','Roteiro'],['captacao','Captação'],['edicao','Edição'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovação'],['publicado','Publicado'],['finalizado','Finalizado']];
 const STAGE_COLOR={agendado:'#0EA5E9',roteiro:'#64748B',captacao:'#2563EB',edicao:'#7C3AED',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
+const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao:'Cartão',transferencia:'Transferência',dinheiro:'Dinheiro',outro:'Outro'};
+const fmtBRL=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+function finStatus(f){if(f.status==='pago')return'pago';if(f.vencimento&&f.vencimento<todayISO())return'atrasado';return'pendente'}
 const SLAB=Object.fromEntries(STAGES);
 const shortLab=k=>k==='modificacoes'?'Modificações':SLAB[k];
 const EVC={autoridade:'#7C3AED',captacao:'#D97706',redes_sociais:'#0284C7',institucional:'#475569',reuniao:'#DB2777'};
@@ -251,11 +260,11 @@ function seedClient(name){
     videos:[
       {id:uid(),cliente:name||'',titulo:'Vídeo institucional — bastidores',objetivo:'institucional',estagio:'edicao',inicio:t,entrega:t,roteiro:'Roteiro do vídeo. Edite este texto.',mods:'',historico:[{estagio:'edicao',data:t}]},
       {id:uid(),cliente:name||'',titulo:'Depoimento de cliente',objetivo:'autoridade',estagio:'aprovacao',inicio:t,entrega:t,roteiro:'Prova social. Edite este texto.',mods:'',historico:[{estagio:'aprovacao',data:t}]}
-    ]};
+    ],financeiro:[]};
 }
 let store=load();
 function load(){
-  try{const s=JSON.parse(lsGet(KEY));if(s&&s.clients&&s.clients.length){if(!('gcalClientId' in s))s.gcalClientId='';return s;}}catch(e){}
+  try{const s=JSON.parse(lsGet(KEY));if(s&&s.clients&&s.clients.length){if(!('gcalClientId' in s))s.gcalClientId='';s.clients.forEach(c=>{if(!c.financeiro)c.financeiro=[]});return s;}}catch(e){}
   const c=seedClient('Cliente Exemplo');return {clients:[c],current:c.id,gcalClientId:''};
 }
 function save(){lsSet(KEY,JSON.stringify(store))}
@@ -344,7 +353,7 @@ function render(){
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}</span></div>${miniDots(v.estagio)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
-  renderCal();save();
+  renderCal();renderFin();save();
 }
 
 function renderCal(){
@@ -364,6 +373,37 @@ function renderCal(){
 }
 function calMove(d){calDate.setMonth(calDate.getMonth()+d);renderCal()}
 
+function renderFin(){
+  const c=cur();const F=c.financeiro||[];
+  const entradas=F.filter(f=>f.tipo==='entrada');
+  const saidas=F.filter(f=>f.tipo==='saida');
+  const totalEntradas=entradas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
+  const totalSaidas=saidas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
+  const saldo=totalEntradas-totalSaidas;
+  const aReceber=entradas.filter(f=>finStatus(f)!=='pago').reduce((s,f)=>s+f.valor,0);
+  const aPagar=saidas.filter(f=>finStatus(f)!=='pago').reduce((s,f)=>s+f.valor,0);
+  $('#finStats').innerHTML=`
+    <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas (pago)</div><div class="num">${fmtBRL(totalEntradas)}</div><div class="delta">${entradas.length} lançamento(s)</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas (pago)</div><div class="num">${fmtBRL(totalSaidas)}</div><div class="delta">${saidas.length} lançamento(s)</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${fmtBRL(saldo)}</div><div class="delta">entradas − saídas (pagas)</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${fmtBRL(aReceber)} / ${fmtBRL(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>`;
+  $('#finTag').textContent=F.length+' lançamento(s)';
+  const sorted=F.slice().sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''));
+  $('#finList').innerHTML=sorted.length?sorted.map(f=>{
+    const st=finStatus(f);
+    const stColor=st==='pago'?'var(--green)':st==='atrasado'?'#E11D48':'var(--amber)';
+    const stLabel=st==='pago'?'Pago':st==='atrasado'?'Atrasado':'Pendente';
+    const isIn=f.tipo==='entrada';
+    return `<div class="prow" onclick="openFin('${f.id}')">
+      <div class="prow-top"><div class="thumb" style="background:${isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)'}">${isIn?'↑':'↓'}</div>
+        <div class="info"><div class="t">${esc(f.descricao||'(sem descrição)')}</div><div class="m">${PAY_METHODS[f.formaPagamento]||''}${f.banco?' · '+esc(f.banco):''}${f.vencimento?' · Venc. '+fmtD(f.vencimento):''}</div></div>
+        <span class="chip" style="background:${isIn?'#ECFDF5':'#FEF2F2'};color:${isIn?'var(--green)':'#E11D48'}">${isIn?'Entrada':'Saída'}</span>
+        <span class="stagechip" style="background:${stColor}">${stLabel}</span></div>
+      <div class="finval" style="color:${isIn?'var(--green)':'#E11D48'}">${isIn?'+ ':'− '}${fmtBRL(f.valor)}</div>
+    </div>`;
+  }).join(''):'<div class="empty">Nenhum lançamento. Clique em "＋ Novo lançamento".</div>';
+}
+
 function bindDrag(){
   let dragId=null;
   $$('.vcard').forEach(el=>{
@@ -377,11 +417,12 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Pipeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Pipeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências']};
+const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()']};
 function go(v){curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
-  $('#addBtn').style.display='flex';
+  const btn=$('#addBtn');btn.style.display='flex';btn.textContent=ADD_ACTIONS[v][0];btn.setAttribute('onclick',ADD_ACTIONS[v][1]);
 }
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)});
 
@@ -440,6 +481,50 @@ function delV(id){
 function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado e publicado')}
 function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas')}
 
+function addFinanceiro(){
+  const f={id:uid(),tipo:'entrada',descricao:'',valor:0,formaPagamento:'pix',banco:'',vencimento:todayISO(),status:'pendente',dataPagamento:''};
+  (cur().financeiro=cur().financeiro||[]).push(f);
+  openFin(f.id);
+}
+function openFin(id){
+  const f=cur().financeiro.find(x=>x.id===id);
+  openModal(`<div class="mtop"><h3>Lançamento financeiro</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="fld"><label>Tipo</label><select id="f_tipo"><option value="entrada" ${f.tipo==='entrada'?'selected':''}>Entrada</option><option value="saida" ${f.tipo==='saida'?'selected':''}>Saída</option></select></div>
+      <div class="fld"><label>Descrição</label><input id="f_desc" value="${esc(f.descricao)}" placeholder="Ex: Pagamento vídeo institucional — entrada 50%"></div>
+      <div class="fld"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="f_valor" value="${f.valor||''}"></div>
+      <div class="frow">
+        <div class="fld"><label>Forma de pagamento</label><select id="f_forma">${Object.entries(PAY_METHODS).map(([k,l])=>`<option value="${k}" ${k===f.formaPagamento?'selected':''}>${l}</option>`).join('')}</select></div>
+        <div class="fld"><label>Banco/Conta</label><input id="f_banco" value="${esc(f.banco)}" placeholder="Ex: Nubank PJ"></div>
+      </div>
+      <div class="frow">
+        <div class="fld"><label>Prazo de pagamento</label><input type="date" id="f_venc" value="${f.vencimento||''}"></div>
+        <div class="fld"><label>Status</label><select id="f_status" onchange="toggleDataPgto(this.value)"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
+      </div>
+      <div class="fld" id="fld_datapg" style="${f.status==='pago'?'':'display:none'}"><label>Dia em que entrou/saiu</label><input type="date" id="f_datapg" value="${f.dataPagamento||''}"></div>
+      <button class="msave" onclick="saveFin('${id}')">Salvar lançamento</button>
+      <button class="mdel" onclick="delFin('${id}')">Excluir</button>
+    </div>`);
+}
+function toggleDataPgto(st){$('#fld_datapg').style.display=st==='pago'?'':'none'}
+function saveFin(id){
+  const f=cur().financeiro.find(x=>x.id===id);
+  f.tipo=$('#f_tipo').value;
+  f.descricao=$('#f_desc').value.trim();
+  f.valor=parseFloat($('#f_valor').value)||0;
+  f.formaPagamento=$('#f_forma').value;
+  f.banco=$('#f_banco').value.trim();
+  f.vencimento=$('#f_venc').value||'';
+  f.status=$('#f_status').value;
+  f.dataPagamento=$('#f_datapg')?($('#f_datapg').value||''):(f.dataPagamento||'');
+  closeM();render();toast('Lançamento salvo ✓');
+}
+function delFin(id){
+  if(!confirm('Excluir este lançamento?'))return;
+  const c=cur();c.financeiro=c.financeiro.filter(x=>x.id!==id);
+  closeM();render();toast('Lançamento excluído');
+}
+
 const SWATCHES=['#EF7B24','#2563EB','#16A34A','#7C3AED','#DC2626','#0891B2','#DB2777','#0B2545'];
 function openSettings(){
   const b=cur().brand;
@@ -462,7 +547,7 @@ function newClient(){const name=prompt('Nome do novo cliente:');if(!name)return;
 function delClient(){if(store.clients.length<=1){alert('Deixe ao menos um cliente.');return}if(!confirm('Excluir este cliente e todos os dados dele?'))return;store.clients=store.clients.filter(c=>c.id!==store.current);store.current=store.clients[0].id;closeM();render();go('dash');toast('Cliente excluído')}
 
 function exportClient(){const c=cur();const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(c.brand.name.toLowerCase().replace(/[^a-z0-9]+/g,'-'))+'-painel.json';a.click();toast('Exportado ✓')}
-function importClient(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const c=JSON.parse(r.result);c.id=uid();if(!c.brand||!c.videos)throw 0;store.clients.push(c);store.current=c.id;render();go('dash');toast('Cliente importado ✓')}catch(_){alert('Arquivo inválido.')}};r.readAsText(f);e.target.value=''}
+function importClient(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const c=JSON.parse(r.result);c.id=uid();if(!c.brand||!c.videos)throw 0;if(!c.financeiro)c.financeiro=[];store.clients.push(c);store.current=c.id;render();go('dash');toast('Cliente importado ✓')}catch(_){alert('Arquivo inválido.')}};r.readAsText(f);e.target.value=''}
 
 // ---- Google Agenda ----
 function nextDayYMD(ymd){const dt=new Date(ymd+'T00:00:00');dt.setDate(dt.getDate()+1);return dt.toISOString().slice(0,10).replace(/-/g,'')}
