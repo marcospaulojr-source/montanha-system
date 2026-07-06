@@ -398,8 +398,8 @@ function renderCal(){
 }
 function calMove(d){calDate.setMonth(calDate.getMonth()+d);renderCal()}
 
-function periodTotais(F,start,end){
-  const inP=f=>f.status==='pago'&&f.dataPagamento&&f.dataPagamento>=start&&f.dataPagamento<=end;
+function periodTotais(F,start,end,cutoff){
+  const inP=f=>f.status==='pago'&&f.dataPagamento&&f.dataPagamento>=start&&f.dataPagamento<=end&&(!cutoff||f.dataPagamento>=cutoff);
   const ent=F.filter(f=>f.tipo==='entrada'&&inP(f)).reduce((s,f)=>s+f.valor,0);
   const sai=F.filter(f=>f.tipo==='saida'&&inP(f)).reduce((s,f)=>s+f.valor,0);
   return{ent,sai};
@@ -409,9 +409,11 @@ function renderFin(){
   const entradas=F.filter(f=>f.tipo==='entrada');
   const saidas=F.filter(f=>f.tipo==='saida');
   const saldosIniciais=store.saldosIniciais||[];
+  const cutoff=saldosIniciais.length?saldosIniciais.reduce((min,si)=>si.data<min?si.data:min,saldosIniciais[0].data):null;
+  const contaAposCutoff=f=>!cutoff||(f.dataPagamento&&f.dataPagamento>=cutoff);
   const bancoMap={};
   saldosIniciais.forEach(si=>{bancoMap[si.banco]=(bancoMap[si.banco]||0)+si.valor});
-  F.filter(f=>f.status==='pago'&&f.banco&&f.banco.trim()).forEach(f=>{
+  F.filter(f=>f.status==='pago'&&f.banco&&f.banco.trim()&&contaAposCutoff(f)).forEach(f=>{
     const b=f.banco.trim();
     bancoMap[b]=(bancoMap[b]||0)+(f.tipo==='entrada'?f.valor:-f.valor);
   });
@@ -427,9 +429,9 @@ function renderFin(){
   const monthStart=`${y}-${String(m+1).padStart(2,'0')}-01`;
   const monthEnd=new Date(y,m+1,0).toISOString().slice(0,10);
   const yearStart=`${y}-01-01`,yearEnd=`${y}-12-31`;
-  const semana=periodTotais(F,weekStart,weekEnd);
-  const mes=periodTotais(F,monthStart,monthEnd);
-  const ano=periodTotais(F,yearStart,yearEnd);
+  const semana=periodTotais(F,weekStart,weekEnd,cutoff);
+  const mes=periodTotais(F,monthStart,monthEnd,cutoff);
+  const ano=periodTotais(F,yearStart,yearEnd,cutoff);
   $('#finPeriodo').innerHTML=`
     <div class="finperiod-row finperiod-head"><span>Período</span><span>Entrou</span><span>Saiu</span><span>Saldo</span></div>
     <div class="finperiod-row"><span>Esta semana</span><span class="fp-in">${fmtBRL(semana.ent)}</span><span class="fp-out">${fmtBRL(semana.sai)}</span><span>${fmtBRL(semana.ent-semana.sai)}</span></div>
@@ -441,18 +443,18 @@ function renderFin(){
     MESES.map((nome,i)=>{
       const ms=`${y}-${String(i+1).padStart(2,'0')}-01`;
       const me=new Date(y,i+1,0).toISOString().slice(0,10);
-      const pm=periodTotais(F,ms,me);
+      const pm=periodTotais(F,ms,me,cutoff);
       return `<div class="finperiod-row"><span>${nome}</span><span class="fp-in">${fmtBRL(pm.ent)}</span><span class="fp-out">${fmtBRL(pm.sai)}</span><span>${fmtBRL(pm.ent-pm.sai)}</span></div>`;
     }).join('');
-  const totalEntradas=entradas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
-  const totalSaidas=saidas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
+  const totalEntradas=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)).reduce((s,f)=>s+f.valor,0);
+  const totalSaidas=saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)).reduce((s,f)=>s+f.valor,0);
   const saldo=totalEntradas-totalSaidas+saldoInicialTotal;
   const aReceber=entradas.filter(f=>finStatus(f)!=='pago').reduce((s,f)=>s+f.valor,0);
   const aPagar=saidas.filter(f=>finStatus(f)!=='pago').reduce((s,f)=>s+f.valor,0);
   $('#finStats').innerHTML=`
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas (pago)</div><div class="num">${fmtBRL(totalEntradas)}</div><div class="delta">${entradas.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas (pago)</div><div class="num">${fmtBRL(totalSaidas)}</div><div class="delta">${saidas.length} lançamento(s)</div></div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${fmtBRL(saldo)}</div><div class="delta">${saldoInicialTotal?'inclui saldo inicial · ':''}entradas − saídas (pagas)</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${fmtBRL(saldo)}</div><div class="delta">${saldoInicialTotal?'saldo inicial + movimentações desde '+fmtD(cutoff):'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${fmtBRL(aReceber)} / ${fmtBRL(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const sorted=F.slice().sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''));
