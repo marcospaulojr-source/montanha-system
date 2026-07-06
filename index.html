@@ -269,8 +269,8 @@ function seedClient(name){
   const t=todayISO();
   return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Painel de Conteúdo',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase()},
     videos:[
-      {id:uid(),cliente:name||'',titulo:'Vídeo institucional — bastidores',objetivo:'institucional',estagio:'edicao',inicio:t,entrega:t,roteiro:'Roteiro do vídeo. Edite este texto.',mods:'',historico:[{estagio:'edicao',data:t}]},
-      {id:uid(),cliente:name||'',titulo:'Depoimento de cliente',objetivo:'autoridade',estagio:'aprovacao',inicio:t,entrega:t,roteiro:'Prova social. Edite este texto.',mods:'',historico:[{estagio:'aprovacao',data:t}]}
+      {id:uid(),cliente:name||'',titulo:'Vídeo institucional — bastidores',objetivo:'institucional',estagio:'edicao',inicio:t,entrega:t,roteiro:'Roteiro do vídeo. Edite este texto.',mods:'',enviado:false,dataEnvio:'',historico:[{estagio:'edicao',data:t}]},
+      {id:uid(),cliente:name||'',titulo:'Depoimento de cliente',objetivo:'autoridade',estagio:'aprovacao',inicio:t,entrega:t,roteiro:'Prova social. Edite este texto.',mods:'',enviado:false,dataEnvio:'',historico:[{estagio:'aprovacao',data:t}]}
     ]};
 }
 let store=load();
@@ -352,8 +352,8 @@ function render(){
   $('#dashList').innerHTML=V.length?V.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
       <div class="prow-top"><div class="thumb">${thumbInner('▶')}</div>
-        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}</div></div>
-        <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
+        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
+        <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
   $('#modsN').textContent=mods.length;
@@ -513,6 +513,8 @@ function openV(id){
       </div>
       <div class="fld"><label>Estágio</label><select id="e_est" onchange="toggleModsFld(this.value)">${STAGES.map(([k,l])=>`<option value="${k}" ${k===v.estagio?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="fld" id="fld_mods" style="${v.estagio==='modificacoes'?'':'display:none'}"><label>Modificações solicitadas pelo cliente</label><textarea id="e_mods" placeholder="Ex: Trocar a trilha sonora, cortar os 5 segundos finais...">${esc(v.mods)}</textarea></div>
+      <div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;font-size:13px;color:var(--text)"><input type="checkbox" id="e_enviado" ${v.enviado?'checked':''} onchange="toggleEnviadoFld(this.checked)" style="width:auto">Enviado para o cliente</label></div>
+      <div class="fld" id="fld_enviado_data" style="${v.enviado?'':'display:none'}"><label>Data de envio</label><input type="date" id="e_dataenvio" value="${v.dataEnvio||''}"></div>
       <div class="fld"><label>Roteiro</label><textarea id="e_rot">${esc(v.roteiro)}</textarea></div>
       <div class="time">${STAGES.map((s,i)=>`<div class="step ${i<si?'done':i===si?'cur':''}"><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`).join('')}</div>
       <div class="fld"><label>Histórico de atualizações</label>${historyHtml(v)}</div>
@@ -523,10 +525,11 @@ function openV(id){
     </div>`);
 }
 function addVideo(){
-  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',historico:[{estagio:'agendado',data:todayISO()}]};
+  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',historico:[{estagio:'agendado',data:todayISO()}]};
   cur().videos.push(v);openV(v.id);
 }
 function toggleModsFld(est){$('#fld_mods').style.display=est==='modificacoes'?'':'none'}
+function toggleEnviadoFld(ck){$('#fld_enviado_data').style.display=ck?'':'none'}
 function saveV(id){
   const v=cur().videos.find(x=>x.id===id);
   v.cliente=$('#e_cliente').value.trim();
@@ -534,6 +537,8 @@ function saveV(id){
   v.inicio=$('#e_inicio').value||'';v.entrega=$('#e_entrega').value||'';
   v.estagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
   v.mods=$('#e_mods')?$('#e_mods').value.trim():(v.mods||'');
+  v.enviado=$('#e_enviado').checked;
+  v.dataEnvio=v.enviado?($('#e_dataenvio').value||todayISO()):'';
   logStage(v,v.estagio);
   closeM();render();toast('Vídeo salvo ✓');
 }
