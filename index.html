@@ -181,12 +181,12 @@ button{font-family:inherit}
   <div class="cliSel">
     <select id="cliSelect" onchange="switchClient(this.value)"></select>
     <button class="icobtn" title="Novo cliente" onclick="newClient()">+</button>
+    <button class="icobtn" title="Excluir cliente" onclick="delClient()">−</button>
   </div>
   <nav class="nav" id="nav">
     <button data-v="dash" class="on"><span class="ic">▤</span><span class="lbl">Dashboard</span></button>
     <button data-v="pipe"><span class="ic">▦</span><span class="lbl">Pipeline</span></button>
     <button data-v="cal"><span class="ic">▧</span><span class="lbl">Calendário</span></button>
-    <button data-v="apr"><span class="ic">✓</span><span class="lbl">Aprovações</span><span class="badge-n" id="aprN">0</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -221,7 +221,6 @@ button{font-family:inherit}
         <div class="bd" id="calBody"></div>
       </div>
     </section>
-    <section class="view" id="apr"><div id="aprList"></div></section>
   </div>
 </div>
 
@@ -271,7 +270,9 @@ let curView='dash';
 function applyBrand(){
   const b=cur().brand;
   document.documentElement.style.setProperty('--accent',b.accent);
-  $('#brandLogo').textContent=b.logo||'A';$('#brandLogo').style.background=b.accent;
+  const bl=$('#brandLogo');
+  if(b.logoImg){bl.innerHTML=`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover;border-radius:10px">`;bl.style.background='transparent'}
+  else{bl.textContent=b.logo||'A';bl.style.background=b.accent}
   $('#brandName').textContent=b.name;$('#brandSub').textContent=b.sub;
 }
 function renderClientSelect(){
@@ -318,10 +319,9 @@ function render(){
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">${v.mods?esc(v.mods):'Sem detalhes registrados'}</div></div><span class="st" style="color:#E11D48">Ver →</span></div>`).join('')
     :'<div class="empty">Nenhuma modificação pendente.</div>';
   $('#dashApr').innerHTML=pend.length?pend.map(v=>`
-    <div class="prow" onclick="go('apr')"><div class="thumb" style="${v.logo?'':'background:linear-gradient(135deg,var(--amber),var(--accent))'}">${thumbInner(v,'⏳')}</div>
+    <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${v.logo?'':'background:linear-gradient(135deg,var(--amber),var(--accent))'}">${thumbInner(v,'⏳')}</div>
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Aguardando aprovação</div></div><span class="st" style="color:var(--amber)">Revisar →</span></div>`).join('')
     :'<div class="empty">Tudo aprovado. 🎉</div>';
-  $('#aprN').textContent=pend.length;$('#aprN').style.display=pend.length?'':'none';
   $('#board').innerHTML=STAGES.map(([k,lab])=>{
     const vs=V.filter(v=>v.estagio===k);
     return `<div class="col" data-stage="${k}"><h3><span class="stagedot" style="background:${STAGE_COLOR[k]}"></span>${lab}<span class="ct">${vs.length}</span></h3>
@@ -331,12 +331,6 @@ function render(){
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}</span></div>${miniDots(v.estagio)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
-  $('#aprList').innerHTML=pend.length?pend.map(v=>`
-    <div class="aprow"><div class="big">${thumbInner(v,'▶')}</div>
-      <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">${esc(v.roteiro)}</div>
-        <div style="margin-top:8px"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span></div></div>
-      <div class="acts"><button class="btn btn-adj" onclick="adjust('${v.id}')">Pedir ajuste</button><button class="btn btn-ok" onclick="approve('${v.id}')">Aprovar</button></div></div>`).join('')
-    :'<div class="empty">Nenhum vídeo aguardando aprovação. ✓</div>';
   renderCal();save();
 }
 
@@ -370,7 +364,7 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Pipeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],apr:['Aprovações','Valide as peças em 1 clique']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Pipeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês']};
 function go(v){curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
@@ -409,6 +403,7 @@ function openV(id){
       <div class="fld"><label>Roteiro</label><textarea id="e_rot">${esc(v.roteiro)}</textarea></div>
       <div class="time">${STAGES.map((s,i)=>`<div class="step ${i<si?'done':i===si?'cur':''}"><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`).join('')}</div>
       <div class="fld"><label>Histórico de atualizações</label>${historyHtml(v)}</div>
+      ${v.estagio==='aprovacao'?`<div class="acts" style="margin:6px 0 2px"><button class="btn btn-adj" style="flex:1" onclick="adjust('${id}')">Pedir ajuste</button><button class="btn btn-ok" style="flex:1" onclick="approve('${id}')">Aprovar</button></div>`:''}
       <button class="gcal" onclick="gcalOpen('${id}')">📅 Adicionar ao Google Agenda</button>
       <button class="msave" onclick="saveV('${id}')">Salvar alterações</button>
       <button class="mdel" onclick="delV('${id}')">Excluir</button>
@@ -451,6 +446,13 @@ function openSettings(){
   openModal(`<div class="mtop"><h3>Marca & configurações</h3><span class="x" onclick="closeM()">✕</span></div><div class="mb">
     <div class="fld"><label>Nome do cliente</label><input id="b_name" value="${esc(b.name)}"></div>
     <div class="fld"><label>Subtítulo</label><input id="b_sub" value="${esc(b.sub)}"></div>
+    <div class="fld"><label>Logo/Foto (substitui a inicial)</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="brandLogoPreview" data-logo="${b.logoImg?esc(b.logoImg):''}" style="width:44px;height:44px;border-radius:10px;overflow:hidden;background:#F1F5F9;display:grid;place-items:center;flex-shrink:0">${b.logoImg?`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:10px;color:var(--muted)">sem foto</span>'}</div>
+        <input type="file" accept="image/*" onchange="previewBrandLogo(event)" style="flex:1">
+        ${b.logoImg?`<button type="button" onclick="clearBrandLogo()" style="all:unset;cursor:pointer;font-size:11px;color:#DC2626;font-weight:600;white-space:nowrap">Remover</button>`:''}
+      </div>
+    </div>
     <div class="frow"><div class="fld"><label>Inicial do logo</label><input id="b_logo" value="${esc(b.logo)}" maxlength="2"></div>
     <div class="fld"><label>Cor de destaque</label><input id="b_accent" value="${b.accent}"></div></div>
     <div class="fld"><label>Cores rápidas</label><div class="color-row">${SWATCHES.map(s=>`<div class="sw ${s===b.accent?'on':''}" style="background:${s}" onclick="document.getElementById('b_accent').value='${s}';document.querySelectorAll('.sw').forEach(x=>x.classList.remove('on'));this.classList.add('on')"></div>`).join('')}</div></div>
@@ -458,7 +460,14 @@ function openSettings(){
     <button class="msave" onclick="saveSettings()">Salvar</button>
     <button class="mdel" onclick="delClient()">Excluir este cliente</button></div>`);
 }
-function saveSettings(){const b=cur().brand;b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';store.gcalClientId=$('#b_gcid').value.trim();closeM();render();toast('Marca atualizada ✓')}
+function previewBrandLogo(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{const p=$('#brandLogoPreview');p.innerHTML=`<img src="${r.result}" style="width:100%;height:100%;object-fit:cover">`;p.dataset.logo=r.result};
+  r.readAsDataURL(f);
+}
+function clearBrandLogo(){const p=$('#brandLogoPreview');p.innerHTML='<span style="font-size:10px;color:var(--muted)">sem foto</span>';p.dataset.logo=''}
+function saveSettings(){const b=cur().brand;b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';b.logoImg=$('#brandLogoPreview').dataset.logo||'';store.gcalClientId=$('#b_gcid').value.trim();closeM();render();toast('Marca atualizada ✓')}
 
 function switchClient(id){store.current=id;calDate=new Date();render();go('dash')}
 function newClient(){const name=prompt('Nome do novo cliente:');if(!name)return;const c=seedClient(name);store.clients.push(c);store.current=c.id;render();go('dash');toast('Cliente criado ✓')}
