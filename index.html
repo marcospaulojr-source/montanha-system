@@ -209,6 +209,9 @@ button{font-family:inherit}
     <button class="sbtn" onclick="exportClient()">⬇️ <span class="lbl">Exportar cliente (JSON)</span></button>
     <button class="sbtn" onclick="document.getElementById('imp').click()">⬆️ <span class="lbl">Importar cliente</span></button>
     <input type="file" id="imp" accept="application/json" style="display:none" onchange="importClient(event)">
+    <button class="sbtn" onclick="exportAll()">💾 <span class="lbl">Backup completo (todos os clientes + financeiro)</span></button>
+    <button class="sbtn" onclick="document.getElementById('impAll').click()">📂 <span class="lbl">Importar backup completo</span></button>
+    <input type="file" id="impAll" accept="application/json" style="display:none" onchange="importAll(event)">
   </div>
 </aside>
 
@@ -688,6 +691,29 @@ function delClient(){if(store.clients.length<=1){alert('Deixe ao menos um client
 
 function exportClient(){const c=cur();const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(c.brand.name.toLowerCase().replace(/[^a-z0-9]+/g,'-'))+'-painel.json';a.click();toast('Exportado ✓')}
 function importClient(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const c=JSON.parse(r.result);c.id=uid();if(!c.brand||!c.videos)throw 0;if(c.financeiro){store.financeiro=(store.financeiro||[]).concat(c.financeiro);delete c.financeiro}store.clients.push(c);store.current=c.id;render();go('dash');toast('Cliente importado ✓')}catch(_){alert('Arquivo inválido.')}};r.readAsText(f);e.target.value=''}
+function exportAll(){
+  const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='backup-painel-completo-'+todayISO()+'.json';a.click();
+  toast('Backup completo exportado ✓');
+}
+function importAll(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const s=JSON.parse(r.result);
+      if(!s.clients||!s.clients.length)throw 0;
+      if(!s.financeiro)s.financeiro=[];
+      if(!s.saldosIniciais)s.saldosIniciais=[];
+      if(!('gcalClientId' in s))s.gcalClientId='';
+      if(!s.current||!s.clients.find(c=>c.id===s.current))s.current=s.clients[0].id;
+      store=s;save();render();go('dash');
+      toast('Backup importado ✓');
+    }catch(_){alert('Arquivo inválido.')}
+  };
+  r.readAsText(f);e.target.value='';
+}
 
 // ---- Google Agenda ----
 function nextDayYMD(ymd){const dt=new Date(ymd+'T00:00:00');dt.setDate(dt.getDate()+1);return dt.toISOString().slice(0,10).replace(/-/g,'')}
