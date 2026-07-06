@@ -151,6 +151,12 @@ button{font-family:inherit}
 .time .step:last-child::before{display:none}
 .time .step .d{width:20px;height:20px;border-radius:50%;background:var(--line);color:#fff;display:grid;place-items:center;margin:0 auto 6px;font-size:11px;position:relative;z-index:1}
 .time .step.done .d{background:var(--green)}.time .step.cur .d{background:var(--accent)}
+.hist{border:1px solid var(--line);border-radius:9px;max-height:160px;overflow-y:auto}
+.hist-row{display:flex;justify-content:space-between;padding:8px 12px;font-size:12.5px;border-bottom:1px solid #F1F5F9}
+.hist-row:last-child{border-bottom:none}
+.hist-d{color:var(--muted);font-weight:600}
+.hist-e{font-weight:600}
+.hist-empty{font-size:12.5px;color:var(--muted);padding:8px 2px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--navy);color:#fff;padding:13px 22px;border-radius:11px;font-size:14px;font-weight:600;box-shadow:0 12px 30px rgba(0,0,0,.3);z-index:60;transition:.35s}
 .toast.on{transform:translateX(-50%) translateY(0)}
 .tpl-tag{position:fixed;top:10px;right:12px;background:#0B2545;color:#fff;font-size:10px;font-weight:800;letter-spacing:.06em;padding:4px 10px;border-radius:20px;z-index:40;text-transform:uppercase}
@@ -235,8 +241,8 @@ function seedClient(name){
   const t=todayISO();
   return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Painel de Conteúdo',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase()},
     videos:[
-      {id:uid(),cliente:name||'',titulo:'Vídeo institucional — bastidores',objetivo:'institucional',estagio:'edicao',inicio:t,entrega:t,roteiro:'Roteiro do vídeo. Edite este texto.',mods:''},
-      {id:uid(),cliente:name||'',titulo:'Depoimento de cliente',objetivo:'autoridade',estagio:'aprovacao',inicio:t,entrega:t,roteiro:'Prova social. Edite este texto.',mods:''}
+      {id:uid(),cliente:name||'',titulo:'Vídeo institucional — bastidores',objetivo:'institucional',estagio:'edicao',inicio:t,entrega:t,roteiro:'Roteiro do vídeo. Edite este texto.',mods:'',historico:[{estagio:'edicao',data:t}]},
+      {id:uid(),cliente:name||'',titulo:'Depoimento de cliente',objetivo:'autoridade',estagio:'aprovacao',inicio:t,entrega:t,roteiro:'Prova social. Edite este texto.',mods:'',historico:[{estagio:'aprovacao',data:t}]}
     ]};
 }
 let store=load();
@@ -245,6 +251,11 @@ function load(){
   const c=seedClient('Cliente Exemplo');return {clients:[c],current:c.id,gcalClientId:''};
 }
 function save(){lsSet(KEY,JSON.stringify(store))}
+function logStage(v,estagio){
+  if(!v.historico)v.historico=[];
+  const last=v.historico[v.historico.length-1];
+  if(!last||last.estagio!==estagio)v.historico.push({estagio,data:todayISO()});
+}
 function cur(){return store.clients.find(c=>c.id===store.current)||store.clients[0]}
 
 let calDate=new Date();
@@ -345,7 +356,7 @@ function bindDrag(){
   $$('.col').forEach(col=>{
     col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag')});
     col.addEventListener('dragleave',()=>col.classList.remove('drag'));
-    col.addEventListener('drop',e=>{e.preventDefault();const v=cur().videos.find(x=>x.id===dragId);if(v){v.estagio=col.dataset.stage;render();toast('Movido para '+SLAB[col.dataset.stage])}});
+    col.addEventListener('drop',e=>{e.preventDefault();const v=cur().videos.find(x=>x.id===dragId);if(v){v.estagio=col.dataset.stage;logStage(v,v.estagio);render();toast('Movido para '+SLAB[col.dataset.stage])}});
   });
 }
 
@@ -357,6 +368,11 @@ function go(v){curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+
 }
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)});
 
+function historyHtml(v){
+  const h=(v.historico||[]).slice().reverse();
+  if(!h.length)return'<div class="hist-empty">Sem histórico registrado ainda.</div>';
+  return `<div class="hist">${h.map(e=>`<div class="hist-row"><span class="hist-d">${fmtD(e.data)}</span><span class="hist-e">${SLAB[e.estagio]}</span></div>`).join('')}</div>`;
+}
 function openModal(html){$('#modal').innerHTML=html;$('#overlay').classList.add('on')}
 function closeM(){$('#overlay').classList.remove('on')}
 $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeM()});
@@ -376,13 +392,14 @@ function openV(id){
       <div class="fld" id="fld_mods" style="${v.estagio==='modificacoes'?'':'display:none'}"><label>Modificações solicitadas pelo cliente</label><textarea id="e_mods" placeholder="Ex: Trocar a trilha sonora, cortar os 5 segundos finais...">${esc(v.mods)}</textarea></div>
       <div class="fld"><label>Roteiro</label><textarea id="e_rot">${esc(v.roteiro)}</textarea></div>
       <div class="time">${STAGES.map((s,i)=>`<div class="step ${i<si?'done':i===si?'cur':''}"><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`).join('')}</div>
+      <div class="fld"><label>Histórico de atualizações</label>${historyHtml(v)}</div>
       <button class="gcal" onclick="gcalOpen('${id}')">📅 Adicionar ao Google Agenda</button>
       <button class="msave" onclick="saveV('${id}')">Salvar alterações</button>
       <button class="mdel" onclick="delV('${id}')">Excluir</button>
     </div>`);
 }
 function addVideo(){
-  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:''};
+  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',historico:[{estagio:'agendado',data:todayISO()}]};
   cur().videos.push(v);openV(v.id);
 }
 function toggleModsFld(est){$('#fld_mods').style.display=est==='modificacoes'?'':'none'}
@@ -393,6 +410,7 @@ function saveV(id){
   v.inicio=$('#e_inicio').value||'';v.entrega=$('#e_entrega').value||'';
   v.estagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
   v.mods=$('#e_mods')?$('#e_mods').value.trim():(v.mods||'');
+  logStage(v,v.estagio);
   closeM();render();toast('Vídeo salvo ✓');
 }
 function delV(id){
@@ -401,8 +419,8 @@ function delV(id){
   const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído')};
   if(v)gcalDeleteEvent(v,finish);else finish();
 }
-function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';closeM();render();go('dash');toast('✓ Aprovado e publicado')}
-function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';closeM();render();go('dash');toast('↩ Modificações solicitadas registradas')}
+function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado e publicado')}
+function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas')}
 
 const SWATCHES=['#EF7B24','#2563EB','#16A34A','#7C3AED','#DC2626','#0891B2','#DB2777','#0B2545'];
 function openSettings(){
