@@ -329,7 +329,8 @@ function renderCal(){
     const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=c.videos.filter(v=>v.entrega===iso);
     cells+=`<div class="cell${iso===tISO?' today':''}"><div class="dn">${d}</div>
-      ${evs.map(ev=>`<div class="ev" style="background:${EVC[ev.objetivo]}" onclick="openV('${ev.id}')" title="${esc(ev.titulo)} · ${SLAB[ev.estagio]}">${esc(ev.titulo.slice(0,22))}${ev.titulo.length>22?'…':''}<div class="evbar"><span style="width:${stagePct(ev.estagio)}%"></span></div></div>`).join('')}</div>`;
+      ${evs.map(ev=>{const lbl=`${ev.titulo}${ev.cliente?' — '+ev.cliente:''} · ${shortLab(ev.estagio)}`;
+        return `<div class="ev" style="background:${EVC[ev.objetivo]}" onclick="openV('${ev.id}')" title="${esc(ev.titulo)}${ev.cliente?' · '+esc(ev.cliente):''} · ${SLAB[ev.estagio]}">${esc(lbl.slice(0,34))}${lbl.length>34?'…':''}<div class="evbar"><span style="width:${stagePct(ev.estagio)}%"></span></div></div>`}).join('')}</div>`;
   }
   $('#calBody').innerHTML=cells;
 }
