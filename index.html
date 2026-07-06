@@ -100,6 +100,8 @@ button{font-family:inherit}
 .fintab{all:unset;cursor:pointer;font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;background:#F1F5F9;color:var(--muted)}
 .fintab:hover{background:#E2E8F0}
 .fintab.on{background:var(--accent);color:#fff}
+.finbank-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #F1F5F9;font-size:13px}
+.finbank-row:last-child{border-bottom:none}
 .vcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:9px;cursor:grab;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:.15s;border-left:3px solid var(--steel)}
 .vcard:hover{transform:translateY(-2px);box-shadow:var(--sh)}
 .vcard.dragging{opacity:.5}
@@ -236,6 +238,7 @@ button{font-family:inherit}
     </section>
     <section class="view" id="fin">
       <div class="stats" id="finStats"></div>
+      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta</h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span></h2><div class="plist" id="finList"></div></div>
@@ -404,6 +407,13 @@ function renderFin(){
   const F=store.financeiro||[];
   const entradas=F.filter(f=>f.tipo==='entrada');
   const saidas=F.filter(f=>f.tipo==='saida');
+  const bancoMap={};
+  F.filter(f=>f.status==='pago'&&f.banco&&f.banco.trim()).forEach(f=>{
+    const b=f.banco.trim();
+    bancoMap[b]=(bancoMap[b]||0)+(f.tipo==='entrada'?f.valor:-f.valor);
+  });
+  const bancos=Object.entries(bancoMap).sort((a,b)=>b[1]-a[1]);
+  $('#finBancos').innerHTML=bancos.length?bancos.map(([nome,saldo])=>`<div class="finbank-row"><span>${esc(nome)}</span><span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${fmtBRL(saldo)}</span></div>`).join(''):'<div class="empty">Nenhum lançamento pago com banco informado ainda.</div>';
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
