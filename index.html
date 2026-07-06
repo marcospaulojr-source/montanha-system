@@ -238,7 +238,7 @@ button{font-family:inherit}
     </section>
     <section class="view" id="fin">
       <div class="stats" id="finStats"></div>
-      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta</h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
+      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span></h2><div class="plist" id="finList"></div></div>
@@ -286,10 +286,11 @@ function load(){
         s.financeiro=[];
         s.clients.forEach(c=>{if(c.financeiro){s.financeiro=s.financeiro.concat(c.financeiro);delete c.financeiro}});
       }
+      if(!s.saldosIniciais)s.saldosIniciais=[];
       return s;
     }
   }catch(e){}
-  const c=seedClient('Cliente Exemplo');return {clients:[c],current:c.id,gcalClientId:'',financeiro:[]};
+  const c=seedClient('Cliente Exemplo');return {clients:[c],current:c.id,gcalClientId:'',financeiro:[],saldosIniciais:[]};
 }
 function save(){lsSet(KEY,JSON.stringify(store))}
 function logStage(v,estagio){
@@ -407,13 +408,16 @@ function renderFin(){
   const F=store.financeiro||[];
   const entradas=F.filter(f=>f.tipo==='entrada');
   const saidas=F.filter(f=>f.tipo==='saida');
+  const saldosIniciais=store.saldosIniciais||[];
   const bancoMap={};
+  saldosIniciais.forEach(si=>{bancoMap[si.banco]=(bancoMap[si.banco]||0)+si.valor});
   F.filter(f=>f.status==='pago'&&f.banco&&f.banco.trim()).forEach(f=>{
     const b=f.banco.trim();
     bancoMap[b]=(bancoMap[b]||0)+(f.tipo==='entrada'?f.valor:-f.valor);
   });
   const bancos=Object.entries(bancoMap).sort((a,b)=>b[1]-a[1]);
-  $('#finBancos').innerHTML=bancos.length?bancos.map(([nome,saldo])=>`<div class="finbank-row"><span>${esc(nome)}</span><span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${fmtBRL(saldo)}</span></div>`).join(''):'<div class="empty">Nenhum lançamento pago com banco informado ainda.</div>';
+  $('#finBancos').innerHTML=bancos.length?bancos.map(([nome,saldo])=>`<div class="finbank-row"><span>${esc(nome)}</span><span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${fmtBRL(saldo)}</span></div>`).join(''):'<div class="empty">Nenhum saldo definido ainda — clique em "Definir saldo inicial".</div>';
+  const saldoInicialTotal=saldosIniciais.reduce((s,si)=>s+si.valor,0);
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
@@ -442,13 +446,13 @@ function renderFin(){
     }).join('');
   const totalEntradas=entradas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
   const totalSaidas=saidas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
-  const saldo=totalEntradas-totalSaidas;
+  const saldo=totalEntradas-totalSaidas+saldoInicialTotal;
   const aReceber=entradas.filter(f=>finStatus(f)!=='pago').reduce((s,f)=>s+f.valor,0);
   const aPagar=saidas.filter(f=>finStatus(f)!=='pago').reduce((s,f)=>s+f.valor,0);
   $('#finStats').innerHTML=`
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas (pago)</div><div class="num">${fmtBRL(totalEntradas)}</div><div class="delta">${entradas.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas (pago)</div><div class="num">${fmtBRL(totalSaidas)}</div><div class="delta">${saidas.length} lançamento(s)</div></div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${fmtBRL(saldo)}</div><div class="delta">entradas − saídas (pagas)</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${fmtBRL(saldo)}</div><div class="delta">${saldoInicialTotal?'inclui saldo inicial · ':''}entradas − saídas (pagas)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${fmtBRL(aReceber)} / ${fmtBRL(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const sorted=F.slice().sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''));
@@ -629,6 +633,29 @@ function delFin(id){
   if(!confirm('Excluir este lançamento?'))return;
   store.financeiro=store.financeiro.filter(x=>x.id!==id);
   closeM();render();toast('Lançamento excluído');
+}
+
+function siRowHtml(si){
+  return `<div class="frow"><div class="fld"><label>Banco/Conta</label><input class="si_banco" value="${si?esc(si.banco):''}" placeholder="Ex: Nubank PF"></div>
+    <div class="fld"><label>Saldo disponível hoje (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
+}
+function addSiRow(){$('#siRows').insertAdjacentHTML('beforeend',siRowHtml(null))}
+function openSaldoInicial(){
+  const items=store.saldosIniciais&&store.saldosIniciais.length?store.saldosIniciais:[null,null];
+  openModal(`<div class="mtop"><h3>Saldo inicial por conta</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="hist-empty" style="margin-bottom:12px">Informe quanto você já tem disponível hoje em cada conta. Esse valor é somado ao saldo geral e ao saldo de cada banco, mas não aparece na lista de lançamentos.</div>
+      <div id="siRows">${items.map(si=>siRowHtml(si)).join('')}</div>
+      <button type="button" onclick="addSiRow()" style="all:unset;cursor:pointer;font-size:12px;color:var(--accent);font-weight:700;margin:8px 0 14px;display:block">+ Adicionar conta</button>
+      <button class="msave" onclick="saveSaldoInicial()">Salvar saldo inicial</button>
+    </div>`);
+}
+function saveSaldoInicial(){
+  const bancos=$$('.si_banco'),valores=$$('.si_valor');
+  const arr=[];
+  bancos.forEach((el,i)=>{const nome=el.value.trim();const valor=parseFloat(valores[i].value)||0;if(nome)arr.push({banco:nome,valor,data:todayISO()})});
+  store.saldosIniciais=arr;
+  closeM();render();toast('Saldo inicial definido ✓');
 }
 
 const SWATCHES=['#EF7B24','#2563EB','#16A34A','#7C3AED','#DC2626','#0891B2','#DB2777','#0B2545'];
