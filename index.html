@@ -610,7 +610,7 @@ function saveFin(id,isNew){
   f.banco=$('#f_banco').value.trim();
   f.vencimento=$('#f_venc').value||'';
   f.status=$('#f_status').value;
-  f.dataPagamento=$('#f_datapg')?($('#f_datapg').value||''):(f.dataPagamento||'');
+  f.dataPagamento=f.status==='pago'?($('#f_datapg').value||todayISO()):'';
   const parcelas=isNew&&$('#f_parcelas')?Math.max(1,parseInt($('#f_parcelas').value)||1):1;
   if(parcelas>1){
     const total=f.valor;
