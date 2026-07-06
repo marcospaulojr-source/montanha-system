@@ -91,6 +91,11 @@ button{font-family:inherit}
 .stagechip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;color:#fff;white-space:nowrap}
 .cliname{font-size:12.5px;font-weight:700;color:var(--steel);margin-bottom:2px}
 .finval{font-size:16px;font-weight:800;text-align:right}
+.finperiod-row{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:10px;padding:9px 0;border-bottom:1px solid #F1F5F9;font-size:13px;align-items:center}
+.finperiod-row:last-child{border-bottom:none}
+.finperiod-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);border-bottom:1px solid var(--line)}
+.fp-in{color:var(--green);font-weight:700}
+.fp-out{color:#E11D48;font-weight:700}
 .vcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:9px;cursor:grab;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:.15s;border-left:3px solid var(--steel)}
 .vcard:hover{transform:translateY(-2px);box-shadow:var(--sh)}
 .vcard.dragging{opacity:.5}
@@ -227,6 +232,7 @@ button{font-family:inherit}
     </section>
     <section class="view" id="fin">
       <div class="stats" id="finStats"></div>
+      <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span></h2><div class="plist" id="finList"></div></div>
     </section>
   </div>
@@ -373,10 +379,33 @@ function renderCal(){
 }
 function calMove(d){calDate.setMonth(calDate.getMonth()+d);renderCal()}
 
+function periodTotais(F,start,end){
+  const inP=f=>f.status==='pago'&&f.dataPagamento&&f.dataPagamento>=start&&f.dataPagamento<=end;
+  const ent=F.filter(f=>f.tipo==='entrada'&&inP(f)).reduce((s,f)=>s+f.valor,0);
+  const sai=F.filter(f=>f.tipo==='saida'&&inP(f)).reduce((s,f)=>s+f.valor,0);
+  return{ent,sai};
+}
 function renderFin(){
   const c=cur();const F=c.financeiro||[];
   const entradas=F.filter(f=>f.tipo==='entrada');
   const saidas=F.filter(f=>f.tipo==='saida');
+  const hoje=new Date();
+  const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
+  const weekStart=wkStartD.toISOString().slice(0,10);
+  const wkEndD=new Date(wkStartD);wkEndD.setDate(wkStartD.getDate()+6);
+  const weekEnd=wkEndD.toISOString().slice(0,10);
+  const y=hoje.getFullYear(),m=hoje.getMonth();
+  const monthStart=`${y}-${String(m+1).padStart(2,'0')}-01`;
+  const monthEnd=new Date(y,m+1,0).toISOString().slice(0,10);
+  const yearStart=`${y}-01-01`,yearEnd=`${y}-12-31`;
+  const semana=periodTotais(F,weekStart,weekEnd);
+  const mes=periodTotais(F,monthStart,monthEnd);
+  const ano=periodTotais(F,yearStart,yearEnd);
+  $('#finPeriodo').innerHTML=`
+    <div class="finperiod-row finperiod-head"><span>Período</span><span>Entrou</span><span>Saiu</span><span>Saldo</span></div>
+    <div class="finperiod-row"><span>Esta semana</span><span class="fp-in">${fmtBRL(semana.ent)}</span><span class="fp-out">${fmtBRL(semana.sai)}</span><span>${fmtBRL(semana.ent-semana.sai)}</span></div>
+    <div class="finperiod-row"><span>Este mês</span><span class="fp-in">${fmtBRL(mes.ent)}</span><span class="fp-out">${fmtBRL(mes.sai)}</span><span>${fmtBRL(mes.ent-mes.sai)}</span></div>
+    <div class="finperiod-row"><span>Este ano</span><span class="fp-in">${fmtBRL(ano.ent)}</span><span class="fp-out">${fmtBRL(ano.sai)}</span><span>${fmtBRL(ano.ent-ano.sai)}</span></div>`;
   const totalEntradas=entradas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
   const totalSaidas=saidas.filter(f=>finStatus(f)==='pago').reduce((s,f)=>s+f.valor,0);
   const saldo=totalEntradas-totalSaidas;
