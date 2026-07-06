@@ -6,6 +6,7 @@
 <title>Painel de Conteúdo · Template Agência IA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --navy:#0B2545; --navy-2:#13315C; --steel:#134074; --accent:#EF7B24; --accent-2:#F59E0B;
@@ -240,8 +241,8 @@ function seedClient(name){
 }
 let store=load();
 function load(){
-  try{const s=JSON.parse(lsGet(KEY));if(s&&s.clients&&s.clients.length)return s;}catch(e){}
-  const c=seedClient('Cliente Exemplo');return {clients:[c],current:c.id};
+  try{const s=JSON.parse(lsGet(KEY));if(s&&s.clients&&s.clients.length){if(!('gcalClientId' in s))s.gcalClientId='';return s;}}catch(e){}
+  const c=seedClient('Cliente Exemplo');return {clients:[c],current:c.id,gcalClientId:''};
 }
 function save(){lsSet(KEY,JSON.stringify(store))}
 function cur(){return store.clients.find(c=>c.id===store.current)||store.clients[0]}
@@ -393,7 +394,12 @@ function saveV(id){
   v.mods=$('#e_mods')?$('#e_mods').value.trim():(v.mods||'');
   closeM();render();toast('Vídeo salvo ✓');
 }
-function delV(id){if(!confirm('Excluir este vídeo?'))return;const c=cur();c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído')}
+function delV(id){
+  if(!confirm('Excluir este vídeo?'))return;
+  const c=cur();const v=c.videos.find(x=>x.id===id);
+  const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído')};
+  if(v)gcalDeleteEvent(v,finish);else finish();
+}
 function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';closeM();render();go('dash');toast('✓ Aprovado e publicado')}
 function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';closeM();render();go('dash');toast('↩ Modificações solicitadas registradas')}
 
@@ -406,10 +412,11 @@ function openSettings(){
     <div class="frow"><div class="fld"><label>Inicial do logo</label><input id="b_logo" value="${esc(b.logo)}" maxlength="2"></div>
     <div class="fld"><label>Cor de destaque</label><input id="b_accent" value="${b.accent}"></div></div>
     <div class="fld"><label>Cores rápidas</label><div class="color-row">${SWATCHES.map(s=>`<div class="sw ${s===b.accent?'on':''}" style="background:${s}" onclick="document.getElementById('b_accent').value='${s}';document.querySelectorAll('.sw').forEach(x=>x.classList.remove('on'));this.classList.add('on')"></div>`).join('')}</div></div>
+    <div class="fld"><label>Google Client ID (integração Google Agenda)</label><input id="b_gcid" value="${esc(store.gcalClientId||'')}" placeholder="xxxxx.apps.googleusercontent.com"></div>
     <button class="msave" onclick="saveSettings()">Salvar</button>
     <button class="mdel" onclick="delClient()">Excluir este cliente</button></div>`);
 }
-function saveSettings(){const b=cur().brand;b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';closeM();render();toast('Marca atualizada ✓')}
+function saveSettings(){const b=cur().brand;b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';store.gcalClientId=$('#b_gcid').value.trim();closeM();render();toast('Marca atualizada ✓')}
 
 function switchClient(id){store.current=id;calDate=new Date();render();go('dash')}
 function newClient(){const name=prompt('Nome do novo cliente:');if(!name)return;const c=seedClient(name);store.clients.push(c);store.current=c.id;render();go('dash');toast('Cliente criado ✓')}
@@ -445,7 +452,45 @@ function gcalUrl(v){
     +'&dates='+d+'/'+nextDayYMD(v.entrega)
     +'&details='+encodeURIComponent(eventDesc(v));
 }
-function gcalOpen(id){const v=cur().videos.find(x=>x.id===id);const u=gcalUrl(v);if(!u){alert('Defina uma data de entrega primeiro.');return}window.open(u,'_blank')}
+function nextDayISO(ymd){const dt=new Date(ymd+'T00:00:00');dt.setDate(dt.getDate()+1);return dt.toISOString().slice(0,10)}
+
+// ---- Google Agenda: integração via API (criação/exclusão automática) ----
+let gcalToken=null,gcalTokenClient=null;
+function ensureGcalTokenClient(){
+  if(!store.gcalClientId){alert('Configure o Google Client ID em "Marca & configurações" primeiro.');return null}
+  if(typeof google==='undefined'||!google.accounts){alert('Google Identity Services ainda não carregou. Tente novamente em instantes.');return null}
+  if(!gcalTokenClient){
+    gcalTokenClient=google.accounts.oauth2.initTokenClient({client_id:store.gcalClientId,scope:'https://www.googleapis.com/auth/calendar.events',callback:()=>{}});
+  }
+  return gcalTokenClient;
+}
+function withGcalAuth(cb){
+  const tc=ensureGcalTokenClient();if(!tc)return;
+  tc.callback=(resp)=>{if(resp.error){toast('Erro de autorização Google');return}gcalToken=resp.access_token;cb()};
+  tc.requestAccessToken({prompt:gcalToken?'':'consent'});
+}
+async function gcalCreateEvent(v){
+  const body={summary:'🎬 Entrega: '+v.titulo,description:eventDesc(v),start:{date:v.entrega},end:{date:nextDayISO(v.entrega)}};
+  try{
+    const res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{method:'POST',headers:{'Authorization':'Bearer '+gcalToken,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!res.ok){toast('Erro ao criar evento no Google Agenda');return}
+    v.gcalEventId=data.id;save();toast('Evento criado no Google Agenda ✓');
+  }catch(e){toast('Erro ao criar evento no Google Agenda')}
+}
+function gcalDeleteEvent(v,done){
+  if(!v.gcalEventId||!store.gcalClientId){done();return}
+  withGcalAuth(async()=>{
+    try{await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+v.gcalEventId,{method:'DELETE',headers:{'Authorization':'Bearer '+gcalToken}})}catch(e){}
+    done();
+  });
+}
+function gcalOpen(id){
+  const v=cur().videos.find(x=>x.id===id);
+  if(!v.entrega){alert('Defina uma data de entrega primeiro.');return}
+  if(store.gcalClientId){withGcalAuth(()=>gcalCreateEvent(v));return}
+  const u=gcalUrl(v);window.open(u,'_blank');
+}
 
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2400)}
 
