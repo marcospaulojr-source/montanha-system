@@ -543,7 +543,7 @@ function renderFin(){
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas (pago)</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidas.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial + movimentações desde '+fmtD(cutoff):'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
-    ${reserveSet.size?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
+    ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const sorted=F.slice().sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''));
   const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
