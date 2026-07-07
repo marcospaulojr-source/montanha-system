@@ -298,6 +298,7 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)}));
 const todayISO=()=>new Date().toISOString().slice(0,10);
+const nowHora=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 
 // ---- pequena preferência local (só qual cliente estava selecionado, não é dado real) ----
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
@@ -344,7 +345,7 @@ function save(){}
 function logStage(v,estagio){
   if(!v.historico)v.historico=[];
   const last=v.historico[v.historico.length-1];
-  if(!last||last.estagio!==estagio)v.historico.push({estagio,data:todayISO()});
+  if(!last||last.estagio!==estagio)v.historico.push({estagio,data:todayISO(),hora:nowHora()});
 }
 function cur(){return store.clients.find(c=>c.id===store.current)||store.clients[0]}
 function sbErr(r){if(r&&r.error){console.error('Erro Supabase:',r.error);toast('⚠️ Erro ao salvar: '+r.error.message)}}
@@ -380,7 +381,7 @@ function miniStepper(v){
   const hist=v.historico||[];
   return `<div class="mini">${STAGES.map((s,i)=>{
     const entry=hist.filter(h=>h.estagio===s[0]).pop();
-    return `<div class="s ${i<si?'done':i===si?'cur':''}"><div class="sd">${entry?fmtD(entry.data):'&nbsp;'}</div><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`;
+    return `<div class="s ${i<si?'done':i===si?'cur':''}" ${entry?`title="${fmtD(entry.data)}${entry.hora?' às '+entry.hora:''}"`:''}><div class="sd">${entry?fmtD(entry.data):'&nbsp;'}</div><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`;
   }).join('')}</div>`;
 }
 function miniDots(est){
@@ -573,7 +574,7 @@ $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)g
 function historyHtml(v){
   const h=(v.historico||[]).slice().reverse();
   if(!h.length)return'<div class="hist-empty">Sem histórico registrado ainda.</div>';
-  return `<div class="hist">${h.map(e=>`<div class="hist-row"><span class="hist-d">${fmtD(e.data)}</span><span class="hist-e">${SLAB[e.estagio]}</span></div>`).join('')}</div>`;
+  return `<div class="hist">${h.map(e=>`<div class="hist-row"><span class="hist-d">${fmtD(e.data)}${e.hora?' '+e.hora:''}</span><span class="hist-e">${SLAB[e.estagio]}</span></div>`).join('')}</div>`;
 }
 function openModal(html){$('#modal').innerHTML=html;$('#overlay').classList.add('on')}
 function closeM(){$('#overlay').classList.remove('on')}
@@ -605,7 +606,7 @@ function openV(id){
     </div>`);
 }
 function addVideo(){
-  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',historico:[{estagio:'agendado',data:todayISO()}]};
+  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',historico:[{estagio:'agendado',data:todayISO(),hora:nowHora()}]};
   cur().videos.push(v);openV(v.id);
   sb.from('videos').insert(videoToDb(v,cur().id)).then(sbErr);
 }
