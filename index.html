@@ -248,14 +248,17 @@ button{font-family:inherit}
     <section class="view on" id="dash">
       <div class="stats" id="stats"></div>
       <div class="grid2">
-        <div class="panel"><h2>▦ Produção <span class="tag" id="prodTag"></span></h2><div class="plist" id="dashList"></div></div>
+        <div class="panel"><h2>▦ Produção <span class="tag" id="prodTag"></span><select id="editorFilterDash" onchange="setEditorFilter(this.value)" style="margin-left:8px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);font-weight:600"></select></h2><div class="plist" id="dashList"></div></div>
         <div class="stack">
           <div class="panel"><h2>✓ Aguardando aprovação <span class="tag">cliente</span></h2><div class="plist" id="dashApr"></div></div>
           <div class="panel"><h2>✎ Modificações solicitadas <span class="tag" id="modsN">0</span></h2><div class="plist" id="dashMods"></div></div>
         </div>
       </div>
     </section>
-    <section class="view" id="pipe"><div class="board" id="board"></div></section>
+    <section class="view" id="pipe">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="font-size:12.5px;font-weight:600;color:var(--muted)">Filtrar por editor:</span><select id="editorFilterPipe" onchange="setEditorFilter(this.value)" style="font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:6px 9px"></select></div>
+      <div class="board" id="board"></div>
+    </section>
     <section class="view" id="cal">
       <div class="cal">
         <div class="calnav"><span class="a" onclick="calMove(-1)">‹</span><span id="calLabel"></span><span class="a" onclick="calMove(1)">›</span></div>
@@ -306,10 +309,10 @@ function seedClient(name){
 let store={clients:[],current:null,gcalClientId:'',financeiro:[],saldosIniciais:[]};
 
 function dbToVideo(row){
-  return {id:row.id,cliente:row.cliente||'',titulo:row.titulo||'',objetivo:row.objetivo,estagio:row.estagio,inicio:row.inicio||'',entrega:row.entrega||'',roteiro:row.roteiro||'',mods:row.mods||'',enviado:!!row.enviado,dataEnvio:row.data_envio||'',gcalEventId:row.gcal_event_id||'',historico:row.historico||[]};
+  return {id:row.id,cliente:row.cliente||'',titulo:row.titulo||'',objetivo:row.objetivo,estagio:row.estagio,inicio:row.inicio||'',entrega:row.entrega||'',roteiro:row.roteiro||'',mods:row.mods||'',enviado:!!row.enviado,dataEnvio:row.data_envio||'',gcalEventId:row.gcal_event_id||'',editor:row.editor||'',historico:row.historico||[]};
 }
 function videoToDb(v,clientId){
-  return {id:v.id,client_id:clientId,cliente:v.cliente||'',titulo:v.titulo||'',objetivo:v.objetivo,estagio:v.estagio,inicio:v.inicio||null,entrega:v.entrega||null,roteiro:v.roteiro||'',mods:v.mods||'',enviado:!!v.enviado,data_envio:v.dataEnvio||null,gcal_event_id:v.gcalEventId||null,historico:v.historico||[]};
+  return {id:v.id,client_id:clientId,cliente:v.cliente||'',titulo:v.titulo||'',objetivo:v.objetivo,estagio:v.estagio,inicio:v.inicio||null,entrega:v.entrega||null,roteiro:v.roteiro||'',mods:v.mods||'',enviado:!!v.enviado,data_envio:v.dataEnvio||null,gcal_event_id:v.gcalEventId||null,editor:v.editor||'',historico:v.historico||[]};
 }
 function dbToFin(row){
   return {id:row.id,tipo:row.tipo,descricao:row.descricao||'',cliente:row.cliente||'',valor:Number(row.valor)||0,formaPagamento:row.forma_pagamento,banco:row.banco||'',vencimento:row.vencimento||'',status:row.status,dataPagamento:row.data_pagamento||''};
@@ -386,9 +389,21 @@ function miniDots(est){
 }
 function stagePct(est){const si=STAGES.findIndex(s=>s[0]===est);return Math.round(si/(STAGES.length-1)*100);}
 function thumbInner(icon){const b=cur().brand;return b.logoImg?`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:icon}
+let editorFilter='all';
+function setEditorFilter(v){editorFilter=v;render()}
+function editorList(V){return[...new Set(V.map(v=>v.editor).filter(Boolean))].sort()}
+function renderEditorFilters(V){
+  const editors=editorList(V);
+  const opts=`<option value="all">Todos os editores</option>${editors.map(e=>`<option value="${esc(e)}" ${editorFilter===e?'selected':''}>${esc(e)}</option>`).join('')}`;
+  const d=$('#editorFilterDash');if(d)d.innerHTML=opts;
+  const p=$('#editorFilterPipe');if(p)p.innerHTML=opts;
+  if(editorFilter!=='all'&&!editors.includes(editorFilter))editorFilter='all';
+}
 function render(){
   const c=cur();applyBrand();renderClientSelect();
   const V=c.videos;
+  renderEditorFilters(V);
+  const Vf=editorFilter==='all'?V:V.filter(v=>v.editor===editorFilter);
   const prod=V.filter(v=>['agendado','roteiro','captacao','edicao','modificacoes'].includes(v.estagio));
   const pend=V.filter(v=>v.estagio==='aprovacao');
   const mods=V.filter(v=>v.estagio==='modificacoes');
@@ -400,11 +415,11 @@ function render(){
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Modificações</div><div class="num">${mods.length}</div><div class="delta">${mods.length?'aguardando ajuste':'nenhuma pendente'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>Aguard. aprovação</div><div class="num">${pend.length}</div><div class="delta">${pend.length?'ação necessária':'tudo em dia'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--accent)"></span>Próxima entrega</div><div class="num" style="font-size:22px">${prox?fmtD(prox):'—'}</div><div class="delta">data de entrega mais próxima</div></div>`;
-  $('#prodTag').textContent=V.length+' peças';
-  $('#dashList').innerHTML=V.length?V.map(v=>`
+  $('#prodTag').textContent=Vf.length+' peças';
+  $('#dashList').innerHTML=Vf.length?Vf.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
       <div class="prow-top"><div class="thumb">${thumbInner('▶')}</div>
-        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
+        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
         <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
@@ -418,11 +433,11 @@ function render(){
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Aguardando aprovação</div></div><span class="st" style="color:var(--amber)">Revisar →</span></div>`).join('')
     :'<div class="empty">Tudo aprovado. 🎉</div>';
   $('#board').innerHTML=STAGES.map(([k,lab])=>{
-    const vs=V.filter(v=>v.estagio===k);
+    const vs=Vf.filter(v=>v.estagio===k);
     return `<div class="col" data-stage="${k}"><h3><span class="stagedot" style="background:${STAGE_COLOR[k]}"></span>${lab}<span class="ct">${vs.length}</span></h3>
       ${vs.map(v=>`<div class="vcard stage-${k}" draggable="true" data-id="${v.id}" onclick="openV('${v.id}')">
         <div class="vhead">${c.brand.logoImg?`<img class="vlogo" src="${c.brand.logoImg}">`:''}<div class="vt">${esc(v.titulo)}</div></div>
-        ${v.cliente?`<div class="vcli">${esc(v.cliente)}</div>`:''}
+        ${v.cliente?`<div class="vcli">${esc(v.cliente)}${v.editor?' · 👤 '+esc(v.editor):''}</div>`:v.editor?`<div class="vcli">👤 ${esc(v.editor)}</div>`:''}
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}</span></div>${miniDots(v.estagio)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
@@ -569,6 +584,7 @@ function openV(id){
   openModal(`<div class="mtop"><h3>Detalhe do vídeo</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
       <div class="fld"><label>Nome do cliente</label><input id="e_cliente" value="${esc(v.cliente)}" placeholder="Ex: Transcouto Transportes"></div>
+      <div class="fld"><label>Editor responsável</label><input id="e_editor" value="${esc(v.editor||'')}" placeholder="Ex: João"></div>
       <div class="fld"><label>Título</label><input id="e_titulo" value="${esc(v.titulo)}"></div>
       <div class="fld"><label>Objetivo</label><select id="e_obj">${Object.entries(OBJ).map(([k,l])=>`<option value="${k}" ${k===v.objetivo?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="frow">
@@ -589,7 +605,7 @@ function openV(id){
     </div>`);
 }
 function addVideo(){
-  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',historico:[{estagio:'agendado',data:todayISO()}]};
+  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',historico:[{estagio:'agendado',data:todayISO()}]};
   cur().videos.push(v);openV(v.id);
   sb.from('videos').insert(videoToDb(v,cur().id)).then(sbErr);
 }
@@ -598,6 +614,7 @@ function toggleEnviadoFld(ck){$('#fld_enviado_data').style.display=ck?'':'none'}
 function saveV(id){
   const v=cur().videos.find(x=>x.id===id);
   v.cliente=$('#e_cliente').value.trim();
+  v.editor=$('#e_editor').value.trim();
   v.titulo=$('#e_titulo').value.trim()||'(sem título)';v.objetivo=$('#e_obj').value;
   v.inicio=$('#e_inicio').value||'';v.entrega=$('#e_entrega').value||'';
   v.estagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
