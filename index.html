@@ -67,10 +67,10 @@ button{font-family:inherit}
 .prow-top .info{flex:1;min-width:0}
 .mini{display:flex;padding:2px 4px 0}
 .mini .s{flex:1;text-align:center;position:relative;font-size:10px;color:var(--muted);font-weight:600}
-.mini .s::before{content:'';position:absolute;top:32px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
+.mini .s::before{content:'';position:absolute;top:24px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
 .mini .s:last-child::before{display:none}
 .mini .s.done::before{background:#BBE7CB}
-.mini .sd{font-size:8.5px;line-height:10px;height:20px;color:var(--muted);font-weight:700;margin-bottom:3px}
+.mini .sd{font-size:8px;line-height:12px;height:12px;color:var(--muted);font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 1px}
 .mini .s .d{width:18px;height:18px;border-radius:50%;background:var(--line);color:#fff;display:grid;place-items:center;margin:0 auto 4px;font-size:10px;position:relative;z-index:1}
 .mini .s.done .d{background:var(--green)}
 .mini .s.cur .d{background:var(--accent)}
@@ -381,7 +381,8 @@ function miniStepper(v){
   const hist=v.historico||[];
   return `<div class="mini">${STAGES.map((s,i)=>{
     const entry=hist.filter(h=>h.estagio===s[0]).pop();
-    return `<div class="s ${i<si?'done':i===si?'cur':''}"><div class="sd">${entry?fmtD(entry.data):'&nbsp;'}${entry&&entry.hora?`<br>${entry.hora}`:''}</div><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`;
+    const dt=entry?`${fmtD(entry.data)}${entry.hora?' '+entry.hora:''}`:'&nbsp;';
+    return `<div class="s ${i<si?'done':i===si?'cur':''}" title="${entry?fmtD(entry.data)+(entry.hora?' às '+entry.hora:''):''}"><div class="sd">${dt}</div><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`;
   }).join('')}</div>`;
 }
 function miniDots(v){
