@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel de Conteúdo · Template Agência IA</title>
+<title>Montanha Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -197,7 +197,7 @@ button{font-family:inherit}
 <body>
 <div class="loginwrap" id="loginwrap">
   <div class="loginbox">
-    <h1>Painel de Conteúdo</h1>
+    <h1>Montanha Studio</h1>
     <div class="s">Faça login para continuar</div>
     <div class="loginerr" id="loginerr"></div>
     <div class="fld"><label>E-mail</label><input type="email" id="loginEmail" placeholder="voce@email.com"></div>
@@ -216,7 +216,7 @@ button{font-family:inherit}
   <div class="brand">
     <div class="logo" id="brandLogo" onclick="document.getElementById('brandLogoFile').click()" title="Clique para alterar a logo" style="cursor:pointer">A</div>
     <input type="file" id="brandLogoFile" accept="image/*" style="display:none" onchange="uploadBrandLogo(event)">
-    <div><div class="n" id="brandName">Cliente</div><div class="s" id="brandSub">Painel de Conteúdo</div></div>
+    <div><div class="n" id="brandName">Cliente</div><div class="s" id="brandSub">Montanha Studio</div></div>
   </div>
   <div class="cliSel">
     <select id="cliSelect" onchange="switchClient(this.value)"></select>
@@ -305,7 +305,7 @@ function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 
 function seedClient(name){
-  return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Painel de Conteúdo',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase(),logoImg:''},videos:[]};
+  return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Montanha Studio',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase(),logoImg:''},videos:[]};
 }
 let store={clients:[],current:null,gcalClientId:'',financeiro:[],saldosIniciais:[]};
 
