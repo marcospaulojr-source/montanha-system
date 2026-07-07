@@ -200,8 +200,14 @@ button{font-family:inherit}
     <div class="s">Faça login para continuar</div>
     <div class="loginerr" id="loginerr"></div>
     <div class="fld"><label>E-mail</label><input type="email" id="loginEmail" placeholder="voce@email.com"></div>
-    <div class="fld"><label>Senha</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+    <div class="fld"><label>Senha</label>
+      <div style="position:relative">
+        <input type="password" id="loginPass" placeholder="••••••••" style="padding-right:40px">
+        <button type="button" onclick="toggleLoginPass()" style="all:unset;cursor:pointer;position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:16px" title="Mostrar/ocultar senha">👁️</button>
+      </div>
+    </div>
     <button class="msave" onclick="doLogin()">Entrar</button>
+    <button type="button" onclick="forgotPassword()" style="all:unset;cursor:pointer;display:block;text-align:center;width:100%;margin-top:14px;font-size:12.5px;color:var(--muted);font-weight:600">Esqueci minha senha</button>
   </div>
 </div>
 <div id="appRoot" class="hidden" style="display:flex;min-height:100vh;width:100%">
@@ -274,6 +280,8 @@ const OBJ={autoridade:'Autoridade',captacao:'Captação',redes_sociais:'Redes So
 const STAGES=[['agendado','Agendado'],['roteiro','Roteiro'],['captacao','Captação'],['edicao','Edição'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovação'],['publicado','Publicado'],['finalizado','Finalizado']];
 const STAGE_COLOR={agendado:'#0EA5E9',roteiro:'#64748B',captacao:'#2563EB',edicao:'#7C3AED',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
 const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao:'Cartão',transferencia:'Transferência',dinheiro:'Dinheiro',outro:'Outro'};
+const BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
+const bancoOptions=sel=>`<option value="">Selecione...</option>${BANCOS.map(b=>`<option value="${b}" ${sel===b?'selected':''}>${b}</option>`).join('')}`;
 const fmtBRL=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function finStatus(f){if(f.status==='pago')return'pago';if(f.vencimento&&f.vencimento<todayISO())return'atrasado';return'pendente'}
 const SLAB=Object.fromEntries(STAGES);
@@ -620,7 +628,7 @@ function openFin(id,isNew){
       <div class="fld"><label>Valor total (R$)</label><input type="number" step="0.01" min="0" id="f_valor" value="${f.valor||''}"></div>
       <div class="frow">
         <div class="fld"><label>Forma de pagamento</label><select id="f_forma">${Object.entries(PAY_METHODS).map(([k,l])=>`<option value="${k}" ${k===f.formaPagamento?'selected':''}>${l}</option>`).join('')}</select></div>
-        <div class="fld"><label>Banco/Conta</label><input id="f_banco" value="${esc(f.banco)}" placeholder="Ex: Nubank PJ"></div>
+        <div class="fld"><label>Banco/Conta</label><select id="f_banco">${bancoOptions(f.banco)}</select></div>
       </div>
       <div class="frow">
         <div class="fld"><label>${isNew?'1ª parcela vence em':'Prazo de pagamento'}</label><input type="date" id="f_venc" value="${f.vencimento||''}"></div>
@@ -688,7 +696,7 @@ function clearFinanceiro(){
 }
 
 function siRowHtml(si){
-  return `<div class="frow"><div class="fld"><label>Banco/Conta</label><input class="si_banco" value="${si?esc(si.banco):''}" placeholder="Ex: Nubank PF"></div>
+  return `<div class="frow"><div class="fld"><label>Banco/Conta</label><select class="si_banco">${bancoOptions(si?si.banco:'')}</select></div>
     <div class="fld"><label>Saldo disponível hoje (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
 }
 function addSiRow(){$('#siRows').insertAdjacentHTML('beforeend',siRowHtml(null))}
@@ -845,10 +853,20 @@ async function boot(){
   $('#appRoot').classList.remove('hidden');
   render();
 }
+function toggleLoginPass(){const i=$('#loginPass');i.type=i.type==='password'?'text':'password'}
+async function forgotPassword(){
+  const email=$('#loginEmail').value.trim();
+  if(!email){$('#loginerr').textContent='Digite seu e-mail acima primeiro.';return}
+  $('#loginerr').style.color='';$('#loginerr').textContent='Enviando...';
+  const{error}=await sb.auth.resetPasswordForEmail(email);
+  if(error){$('#loginerr').textContent='Erro ao solicitar redefinição de senha.';return}
+  $('#loginerr').style.color='var(--green)';
+  $('#loginerr').textContent='Se o e-mail existir, um link de redefinição foi enviado.';
+}
 async function doLogin(){
   const email=$('#loginEmail').value.trim();
   const password=$('#loginPass').value;
-  $('#loginerr').textContent='';
+  $('#loginerr').style.color='';$('#loginerr').textContent='';
   const{error}=await sb.auth.signInWithPassword({email,password});
   if(error){$('#loginerr').textContent='E-mail ou senha inválidos.';return}
   boot();
