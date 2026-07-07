@@ -53,8 +53,6 @@ button{font-family:inherit}
 #finStats{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 .eyebtn{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .eyebtn:hover{background:#F8FAFC}
-.reservabadge{font-size:9.5px;font-weight:700;color:#7C3AED;background:#EEF2FF;padding:1px 6px;border-radius:10px;margin-left:6px}
-.reservatoggle{cursor:pointer;font-size:14px;margin-left:8px;user-select:none}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 19px;box-shadow:var(--sh)}
 .stat .lab{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:7px}
 .stat .num{font-size:29px;font-weight:800;margin-top:7px;letter-spacing:-.02em}
@@ -292,6 +290,7 @@ const STAGES=[['agendado','Agendado'],['roteiro','Roteiro'],['captacao','Captaç
 const STAGE_COLOR={agendado:'#0EA5E9',roteiro:'#64748B',captacao:'#2563EB',edicao:'#7C3AED',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
 const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao:'Cartão',transferencia:'Transferência',dinheiro:'Dinheiro',outro:'Outro'};
 const BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
+const RESERVE_BANCOS=['Nubank Caixinha Roxa','Nubank Caixinha'];
 const bancoOptions=sel=>`<option value="">Selecione...</option>${BANCOS.map(b=>`<option value="${b}" ${sel===b?'selected':''}>${b}</option>`).join('')}`;
 const fmtBRL=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function finStatus(f){if(f.status==='pago')return'pago';if(f.vencimento&&f.vencimento<todayISO())return'atrasado';return'pendente'}
@@ -313,7 +312,7 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function seedClient(name){
   return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Montanha Studio',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase(),logoImg:''},videos:[]};
 }
-let store={clients:[],current:null,gcalClientId:'',reserveBancos:[],financeiro:[],saldosIniciais:[]};
+let store={clients:[],current:null,gcalClientId:'',financeiro:[],saldosIniciais:[]};
 
 function dbToVideo(row){
   return {id:row.id,cliente:row.cliente||'',titulo:row.titulo||'',objetivo:row.objetivo,estagio:row.estagio,inicio:row.inicio||'',entrega:row.entrega||'',roteiro:row.roteiro||'',mods:row.mods||'',enviado:!!row.enviado,dataEnvio:row.data_envio||'',gcalEventId:row.gcal_event_id||'',editor:row.editor||'',historico:row.historico||[]};
@@ -343,7 +342,6 @@ async function fetchAll(){
     clients,
     current,
     gcalClientId:(cfgRows&&cfgRows[0]&&cfgRows[0].gcal_client_id)||'',
-    reserveBancos:(cfgRows&&cfgRows[0]&&cfgRows[0].reserve_bancos)||[],
     financeiro:(finRows||[]).map(dbToFin),
     saldosIniciais:(siRows||[]).map(row=>({id:row.id,banco:row.banco,valor:Number(row.valor)||0,data:row.data}))
   };
@@ -487,8 +485,7 @@ function renderFin(){
   const saldosIniciais=store.saldosIniciais||[];
   const cutoff=saldosIniciais.length?saldosIniciais.reduce((min,si)=>si.data<min?si.data:min,saldosIniciais[0].data):null;
   const contaAposCutoff=f=>!cutoff||(f.dataPagamento&&f.dataPagamento>=cutoff);
-  const reserveSet=new Set(store.reserveBancos||[]);
-  const isReserva=nome=>reserveSet.has(nome);
+  const isReserva=nome=>RESERVE_BANCOS.includes(nome);
   const naoReserva=f=>!f.banco||!isReserva(f.banco.trim());
   const mask=n=>valoresVisiveis?fmtBRL(n):'R$ ••••';
   $('#finEyeBtn').innerHTML=`<button class="eyebtn" onclick="toggleValoresVisiveis()">${valoresVisiveis?'🙈 Ocultar valores':'👁️ Mostrar valores'}</button>`;
@@ -501,8 +498,8 @@ function renderFin(){
   });
   const bancos=Object.entries(bancoMap).sort((a,b)=>b[1]-a[1]);
   $('#finBancos').innerHTML=bancos.length?bancos.map(([nome,saldo])=>`
-    <div class="finbank-row"><span>${esc(nome)}${isReserva(nome)?'<span class="reservabadge">🔒 Reserva</span>':''}</span>
-      <span style="display:flex;align-items:center"><span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${mask(saldo)}</span><span class="reservatoggle" title="${isReserva(nome)?'Remover da reserva':'Marcar como reserva (não soma no saldo total)'}" onclick="toggleReserva('${esc(nome)}')">${isReserva(nome)?'🔓':'🔒'}</span></span>
+    <div class="finbank-row"><span>${esc(nome)}</span>
+      <span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${mask(saldo)}</span>
     </div>`).join(''):'<div class="empty">Nenhum saldo definido ainda — clique em "Definir saldo inicial".</div>';
   const saldoInicialOperacional=saldosIniciais.filter(si=>!isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
@@ -575,15 +572,8 @@ function renderFin(){
 }
 let finFilter='all';
 function setFinFilter(k){finFilter=k;renderFin()}
-let valoresVisiveis=lsGet('valoresVisiveis')!=='false';
+let valoresVisiveis=lsGet('valoresVisiveis')==='true';
 function toggleValoresVisiveis(){valoresVisiveis=!valoresVisiveis;lsSet('valoresVisiveis',String(valoresVisiveis));renderFin()}
-function toggleReserva(nome){
-  const arr=new Set(store.reserveBancos||[]);
-  if(arr.has(nome))arr.delete(nome);else arr.add(nome);
-  store.reserveBancos=[...arr];
-  render();
-  sb.from('app_config').update({reserve_bancos:store.reserveBancos}).eq('id',1).then(sbErr);
-}
 
 function bindDrag(){
   let dragId=null;
