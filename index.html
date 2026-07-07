@@ -342,6 +342,7 @@ function logStage(v,estagio){
   if(!last||last.estagio!==estagio)v.historico.push({estagio,data:todayISO()});
 }
 function cur(){return store.clients.find(c=>c.id===store.current)||store.clients[0]}
+function sbErr(r){if(r&&r.error){console.error('Erro Supabase:',r.error);toast('⚠️ Erro ao salvar: '+r.error.message)}}
 
 let calDate=new Date();
 let curView='dash';
@@ -357,7 +358,7 @@ function applyBrand(){
 function uploadBrandLogo(e){
   const f=e.target.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{const c=cur();c.brand.logoImg=r.result;applyBrand();toast('Logo atualizada ✓');sb.from('clients').update({logo_img:c.brand.logoImg}).eq('id',c.id).then()};
+  r.onload=()=>{const c=cur();c.brand.logoImg=r.result;applyBrand();toast('Logo atualizada ✓');sb.from('clients').update({logo_img:c.brand.logoImg}).eq('id',c.id).then(sbErr)};
   r.readAsDataURL(f);
   e.target.value='';
 }
@@ -537,13 +538,13 @@ function bindDrag(){
   $$('.col').forEach(col=>{
     col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag')});
     col.addEventListener('dragleave',()=>col.classList.remove('drag'));
-    col.addEventListener('drop',e=>{e.preventDefault();const v=cur().videos.find(x=>x.id===dragId);if(v){v.estagio=col.dataset.stage;logStage(v,v.estagio);render();toast('Movido para '+SLAB[col.dataset.stage]);sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',v.id).then()}});
+    col.addEventListener('drop',e=>{e.preventDefault();const v=cur().videos.find(x=>x.id===dragId);if(v){v.estagio=col.dataset.stage;logStage(v,v.estagio);render();toast('Movido para '+SLAB[col.dataset.stage]);sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',v.id).then(sbErr)}});
   });
 }
 
 const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Pipeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências']};
 const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()']};
-function go(v){curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
+function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
   const btn=$('#addBtn');btn.style.display='flex';btn.textContent=ADD_ACTIONS[v][0];btn.setAttribute('onclick',ADD_ACTIONS[v][1]);
@@ -586,7 +587,7 @@ function openV(id){
 function addVideo(){
   const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',historico:[{estagio:'agendado',data:todayISO()}]};
   cur().videos.push(v);openV(v.id);
-  sb.from('videos').insert(videoToDb(v,cur().id)).then();
+  sb.from('videos').insert(videoToDb(v,cur().id)).then(sbErr);
 }
 function toggleModsFld(est){$('#fld_mods').style.display=est==='modificacoes'?'':'none'}
 function toggleEnviadoFld(ck){$('#fld_enviado_data').style.display=ck?'':'none'}
@@ -601,22 +602,22 @@ function saveV(id){
   v.dataEnvio=v.enviado?($('#e_dataenvio').value||todayISO()):'';
   logStage(v,v.estagio);
   closeM();render();toast('Vídeo salvo ✓');
-  sb.from('videos').update(videoToDb(v,cur().id)).eq('id',id).then();
+  sb.from('videos').update(videoToDb(v,cur().id)).eq('id',id).then(sbErr);
 }
 function delV(id){
   if(!confirm('Excluir este vídeo?'))return;
   const c=cur();const v=c.videos.find(x=>x.id===id);
-  const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then()};
+  const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then(sbErr)};
   if(v)gcalDeleteEvent(v,finish);else finish();
 }
-function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado e publicado');sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',id).then()}
-function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas');sb.from('videos').update({estagio:v.estagio,mods:v.mods,historico:v.historico}).eq('id',id).then()}
+function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado e publicado');sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',id).then(sbErr)}
+function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas');sb.from('videos').update({estagio:v.estagio,mods:v.mods,historico:v.historico}).eq('id',id).then(sbErr)}
 
 function addFinanceiro(){
   const f={id:uid(),tipo:'entrada',descricao:'',cliente:'',valor:0,formaPagamento:'pix',banco:'',vencimento:todayISO(),status:'pendente',dataPagamento:''};
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
-  sb.from('financeiro').insert(finToDb(f)).then();
+  sb.from('financeiro').insert(finToDb(f)).then(sbErr);
 }
 function openFin(id,isNew){
   const f=store.financeiro.find(x=>x.id===id);
@@ -676,23 +677,23 @@ function saveFin(id,isNew){
       const nf={id:uid(),tipo:f.tipo,descricao:`${descBase} (parcela ${i}/${parcelas})`,cliente:f.cliente,valor:valores[i-1],formaPagamento:f.formaPagamento,banco:f.banco,vencimento:d.toISOString().slice(0,10),status:'pendente',dataPagamento:''};
       store.financeiro.push(nf);novos.push(nf);
     }
-    if(novos.length)sb.from('financeiro').insert(novos.map(finToDb)).then();
+    if(novos.length)sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
   }
   closeM();render();toast(parcelas>1?`Lançamento dividido em ${parcelas}x ✓`:'Lançamento salvo ✓');
-  sb.from('financeiro').update(finToDb(f)).eq('id',id).then();
+  sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
 function delFin(id){
   if(!confirm('Excluir este lançamento?'))return;
   store.financeiro=store.financeiro.filter(x=>x.id!==id);
   closeM();render();toast('Lançamento excluído');
-  sb.from('financeiro').delete().eq('id',id).then();
+  sb.from('financeiro').delete().eq('id',id).then(sbErr);
 }
 function clearFinanceiro(){
   if(!confirm('Isso vai apagar TODOS os lançamentos (entradas e saídas) registrados até agora. O saldo inicial definido não é afetado. Confirma?'))return;
   const ids=store.financeiro.map(f=>f.id);
   store.financeiro=[];
   render();toast('Lançamentos limpos ✓');
-  if(ids.length)sb.from('financeiro').delete().in('id',ids).then();
+  if(ids.length)sb.from('financeiro').delete().in('id',ids).then(sbErr);
 }
 
 function siRowHtml(si){
@@ -718,8 +719,8 @@ function saveSaldoInicial(){
   store.saldosIniciais=arr;
   closeM();render();toast('Saldo inicial definido ✓');
   (async()=>{
-    if(oldIds.length)await sb.from('saldos_iniciais').delete().in('id',oldIds);
-    if(arr.length)await sb.from('saldos_iniciais').insert(arr.map(s=>({banco:s.banco,valor:s.valor,data:s.data})));
+    if(oldIds.length)sbErr(await sb.from('saldos_iniciais').delete().in('id',oldIds));
+    if(arr.length)sbErr(await sb.from('saldos_iniciais').insert(arr.map(s=>({banco:s.banco,valor:s.valor,data:s.data}))));
     await fetchAll();render();
   })();
 }
@@ -738,14 +739,14 @@ function openSettings(){
     <button class="msave" onclick="saveSettings()">Salvar</button>
     <button class="mdel" onclick="delClient()">Excluir este cliente</button></div>`);
 }
-function clearBrandLogo(){const c=cur();c.brand.logoImg='';closeM();render();openSettings();toast('Foto removida ✓');sb.from('clients').update({logo_img:''}).eq('id',c.id).then()}
+function clearBrandLogo(){const c=cur();c.brand.logoImg='';closeM();render();openSettings();toast('Foto removida ✓');sb.from('clients').update({logo_img:''}).eq('id',c.id).then(sbErr)}
 function saveSettings(){
   const c=cur();const b=c.brand;
   b.name=$('#b_name').value.trim()||'Cliente';b.sub=$('#b_sub').value.trim();b.logo=($('#b_logo').value.trim()||b.name[0]).toUpperCase();b.accent=$('#b_accent').value.trim()||'#EF7B24';
   store.gcalClientId=$('#b_gcid').value.trim();
   closeM();render();toast('Marca atualizada ✓');
-  sb.from('clients').update({name:b.name,sub:b.sub,logo:b.logo,accent:b.accent}).eq('id',c.id).then();
-  sb.from('app_config').update({gcal_client_id:store.gcalClientId}).eq('id',1).then();
+  sb.from('clients').update({name:b.name,sub:b.sub,logo:b.logo,accent:b.accent}).eq('id',c.id).then(sbErr);
+  sb.from('app_config').update({gcal_client_id:store.gcalClientId}).eq('id',1).then(sbErr);
 }
 
 function switchClient(id){store.current=id;lsSet('lastClientId',id);calDate=new Date();render();go('dash')}
@@ -753,7 +754,7 @@ function newClient(){
   const name=prompt('Nome do novo cliente:');if(!name)return;
   const c=seedClient(name);store.clients.push(c);store.current=c.id;lsSet('lastClientId',c.id);
   render();go('dash');toast('Cliente criado ✓');
-  sb.from('clients').insert({id:c.id,name:c.brand.name,sub:c.brand.sub,accent:c.brand.accent,logo:c.brand.logo,logo_img:''}).then();
+  sb.from('clients').insert({id:c.id,name:c.brand.name,sub:c.brand.sub,accent:c.brand.accent,logo:c.brand.logo,logo_img:''}).then(sbErr);
 }
 function delClient(){
   if(store.clients.length<=1){alert('Deixe ao menos um cliente.');return}
@@ -761,7 +762,7 @@ function delClient(){
   const idToDelete=store.current;
   store.clients=store.clients.filter(c=>c.id!==idToDelete);store.current=store.clients[0].id;lsSet('lastClientId',store.current);
   closeM();render();go('dash');toast('Cliente excluído');
-  sb.from('clients').delete().eq('id',idToDelete).then();
+  sb.from('clients').delete().eq('id',idToDelete).then(sbErr);
 }
 
 function exportClient(){const c=cur();const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(c.brand.name.toLowerCase().replace(/[^a-z0-9]+/g,'-'))+'-painel.json';a.click();toast('Exportado ✓')}
@@ -842,7 +843,17 @@ function gcalOpen(id){
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2400)}
 
 // ---- Autenticação (Supabase Auth) ----
+let canViewFinanceiro=false;
+async function loadPermissions(){
+  const{data:{user}}=await sb.auth.getUser();
+  if(!user){canViewFinanceiro=false;return}
+  const{data}=await sb.from('profiles').select('can_view_financeiro').eq('id',user.id).maybeSingle();
+  canViewFinanceiro=!!(data&&data.can_view_financeiro);
+  const navBtn=document.querySelector('[data-v="fin"]');
+  if(navBtn)navBtn.style.display=canViewFinanceiro?'':'none';
+}
 async function boot(){
+  await loadPermissions();
   await fetchAll();
   if(!store.clients.length){
     const c=seedClient('Cliente Exemplo');
