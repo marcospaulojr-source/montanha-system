@@ -572,8 +572,8 @@ function renderFin(){
 }
 let finFilter='all';
 function setFinFilter(k){finFilter=k;renderFin()}
-let valoresVisiveis=lsGet('valoresVisiveis')==='true';
-function toggleValoresVisiveis(){valoresVisiveis=!valoresVisiveis;lsSet('valoresVisiveis',String(valoresVisiveis));renderFin()}
+let valoresVisiveis=false;
+function toggleValoresVisiveis(){valoresVisiveis=!valoresVisiveis;renderFin()}
 
 function bindDrag(){
   let dragId=null;
