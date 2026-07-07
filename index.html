@@ -315,10 +315,10 @@ function seedClient(name){
 let store={clients:[],current:null,gcalClientId:'',financeiro:[],saldosIniciais:[]};
 
 function dbToVideo(row){
-  return {id:row.id,cliente:row.cliente||'',titulo:row.titulo||'',objetivo:row.objetivo,estagio:row.estagio,inicio:row.inicio||'',entrega:row.entrega||'',roteiro:row.roteiro||'',mods:row.mods||'',enviado:!!row.enviado,dataEnvio:row.data_envio||'',gcalEventId:row.gcal_event_id||'',editor:row.editor||'',historico:row.historico||[]};
+  return {id:row.id,cliente:row.cliente||'',titulo:row.titulo||'',objetivo:row.objetivo,estagio:row.estagio,inicio:row.inicio||'',entrega:row.entrega||'',roteiro:row.roteiro||'',mods:row.mods||'',enviado:!!row.enviado,dataEnvio:row.data_envio||'',gcalEventId:row.gcal_event_id||'',editor:row.editor||'',descricaoServico:row.descricao_servico||'',historico:row.historico||[]};
 }
 function videoToDb(v,clientId){
-  return {id:v.id,client_id:clientId,cliente:v.cliente||'',titulo:v.titulo||'',objetivo:v.objetivo,estagio:v.estagio,inicio:v.inicio||null,entrega:v.entrega||null,roteiro:v.roteiro||'',mods:v.mods||'',enviado:!!v.enviado,data_envio:v.dataEnvio||null,gcal_event_id:v.gcalEventId||null,editor:v.editor||'',historico:v.historico||[]};
+  return {id:v.id,client_id:clientId,cliente:v.cliente||'',titulo:v.titulo||'',objetivo:v.objetivo,estagio:v.estagio,inicio:v.inicio||null,entrega:v.entrega||null,roteiro:v.roteiro||'',mods:v.mods||'',enviado:!!v.enviado,data_envio:v.dataEnvio||null,gcal_event_id:v.gcalEventId||null,editor:v.editor||'',descricao_servico:v.descricaoServico||'',historico:v.historico||[]};
 }
 function dbToFin(row){
   return {id:row.id,tipo:row.tipo,descricao:row.descricao||'',cliente:row.cliente||'',valor:Number(row.valor)||0,desconto:Number(row.desconto)||0,formaPagamento:row.forma_pagamento,banco:row.banco||'',vencimento:row.vencimento||'',status:row.status,dataPagamento:row.data_pagamento||''};
@@ -431,7 +431,7 @@ function render(){
   $('#dashList').innerHTML=Vf.length?Vf.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
       <div class="prow-top"><div class="thumb">${thumbInner('▶')}</div>
-        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
+        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div>${v.descricaoServico?`<div class="m" style="color:var(--text)">${esc(v.descricaoServico)}</div>`:''}<div class="m">Entrega ${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
         <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
@@ -614,6 +614,7 @@ function openV(id){
       <div class="fld"><label>Nome do cliente</label><input id="e_cliente" value="${esc(v.cliente)}" placeholder="Ex: Transcouto Transportes"></div>
       <div class="fld"><label>Editor responsável</label><input id="e_editor" value="${esc(v.editor||'')}" placeholder="Ex: João"></div>
       <div class="fld"><label>Título</label><input id="e_titulo" value="${esc(v.titulo)}"></div>
+      <div class="fld"><label>Descrição do serviço</label><textarea id="e_descServico" placeholder="Ex: Gravação e edição de vídeo institucional para Instagram">${esc(v.descricaoServico||'')}</textarea></div>
       <div class="fld"><label>Objetivo</label><select id="e_obj">${Object.entries(OBJ).map(([k,l])=>`<option value="${k}" ${k===v.objetivo?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="frow">
         <div class="fld"><label>Data de início</label><input type="date" id="e_inicio" value="${v.inicio||''}"></div>
@@ -633,7 +634,7 @@ function openV(id){
     </div>`);
 }
 function addVideo(){
-  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',historico:[{estagio:'agendado',data:todayISO(),hora:nowHora()}]};
+  const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',descricaoServico:'',historico:[{estagio:'agendado',data:todayISO(),hora:nowHora()}]};
   cur().videos.push(v);openV(v.id);
   sb.from('videos').insert(videoToDb(v,cur().id)).then(sbErr);
 }
@@ -644,6 +645,7 @@ function saveV(id){
   v.cliente=$('#e_cliente').value.trim();
   v.editor=$('#e_editor').value.trim();
   v.titulo=$('#e_titulo').value.trim()||'(sem título)';v.objetivo=$('#e_obj').value;
+  v.descricaoServico=$('#e_descServico').value.trim();
   v.inicio=$('#e_inicio').value||'';v.entrega=$('#e_entrega').value||'';
   v.estagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
   v.mods=$('#e_mods')?$('#e_mods').value.trim():(v.mods||'');
