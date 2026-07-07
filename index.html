@@ -67,10 +67,10 @@ button{font-family:inherit}
 .prow-top .info{flex:1;min-width:0}
 .mini{display:flex;padding:2px 4px 0}
 .mini .s{flex:1;text-align:center;position:relative;font-size:10px;color:var(--muted);font-weight:600}
-.mini .s::before{content:'';position:absolute;top:24px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
+.mini .s::before{content:'';position:absolute;top:32px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
 .mini .s:last-child::before{display:none}
 .mini .s.done::before{background:#BBE7CB}
-.mini .sd{font-size:9px;line-height:12px;height:12px;color:var(--muted);font-weight:700;margin-bottom:3px}
+.mini .sd{font-size:8.5px;line-height:10px;height:20px;color:var(--muted);font-weight:700;margin-bottom:3px}
 .mini .s .d{width:18px;height:18px;border-radius:50%;background:var(--line);color:#fff;display:grid;place-items:center;margin:0 auto 4px;font-size:10px;position:relative;z-index:1}
 .mini .s.done .d{background:var(--green)}
 .mini .s.cur .d{background:var(--accent)}
@@ -225,7 +225,7 @@ button{font-family:inherit}
   </div>
   <nav class="nav" id="nav">
     <button data-v="dash" class="on"><span class="ic">▤</span><span class="lbl">Dashboard</span></button>
-    <button data-v="pipe"><span class="ic">▦</span><span class="lbl">Pipeline</span></button>
+    <button data-v="pipe"><span class="ic">▦</span><span class="lbl">Timeline</span></button>
     <button data-v="cal"><span class="ic">▧</span><span class="lbl">Calendário</span></button>
     <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
   </nav>
@@ -381,12 +381,15 @@ function miniStepper(v){
   const hist=v.historico||[];
   return `<div class="mini">${STAGES.map((s,i)=>{
     const entry=hist.filter(h=>h.estagio===s[0]).pop();
-    return `<div class="s ${i<si?'done':i===si?'cur':''}" ${entry?`title="${fmtD(entry.data)}${entry.hora?' às '+entry.hora:''}"`:''}><div class="sd">${entry?fmtD(entry.data):'&nbsp;'}</div><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`;
+    return `<div class="s ${i<si?'done':i===si?'cur':''}"><div class="sd">${entry?fmtD(entry.data):'&nbsp;'}${entry&&entry.hora?`<br>${entry.hora}`:''}</div><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`;
   }).join('')}</div>`;
 }
-function miniDots(est){
+function miniDots(v){
+  const est=v.estagio;
   const si=STAGES.findIndex(s=>s[0]===est);
-  return `<div class="dots">${STAGES.map((s,i)=>`<i class="${i<si?'done':i===si?'cur':''}" title="${s[1]}"></i>`).join('')}<span class="lbl-cur" style="color:${STAGE_COLOR[est]}">${shortLab(est)}</span></div>`;
+  const entry=(v.historico||[]).filter(h=>h.estagio===est).pop();
+  const dt=entry?`${fmtD(entry.data)}${entry.hora?' '+entry.hora:''}`:'';
+  return `<div class="dots">${STAGES.map((s,i)=>`<i class="${i<si?'done':i===si?'cur':''}" title="${s[1]}"></i>`).join('')}<span class="lbl-cur" style="color:${STAGE_COLOR[est]}">${shortLab(est)}${dt?' · '+dt:''}</span></div>`;
 }
 function stagePct(est){const si=STAGES.findIndex(s=>s[0]===est);return Math.round(si/(STAGES.length-1)*100);}
 function thumbInner(icon){const b=cur().brand;return b.logoImg?`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:icon}
@@ -439,7 +442,7 @@ function render(){
       ${vs.map(v=>`<div class="vcard stage-${k}" draggable="true" data-id="${v.id}" onclick="openV('${v.id}')">
         <div class="vhead">${c.brand.logoImg?`<img class="vlogo" src="${c.brand.logoImg}">`:''}<div class="vt">${esc(v.titulo)}</div></div>
         ${v.cliente?`<div class="vcli">${esc(v.cliente)}${v.editor?' · 👤 '+esc(v.editor):''}</div>`:v.editor?`<div class="vcli">👤 ${esc(v.editor)}</div>`:''}
-        <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}</span></div>${miniDots(v.estagio)}</div>`).join('')}</div>`;
+        <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}</span></div>${miniDots(v)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
   renderCal();renderFin();save();
@@ -455,8 +458,8 @@ function renderCal(){
     const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=c.videos.filter(v=>v.entrega===iso);
     cells+=`<div class="cell${iso===tISO?' today':''}"><div class="dn">${d}</div>
-      ${evs.map(ev=>{const lbl=`${ev.cliente?ev.cliente+' — ':''}${ev.titulo} · ${shortLab(ev.estagio)}`;
-        return `<div class="ev" style="background:${EVC[ev.objetivo]}" onclick="openV('${ev.id}')" title="${ev.cliente?esc(ev.cliente)+' · ':''}${esc(ev.titulo)} · ${SLAB[ev.estagio]}">${esc(lbl.slice(0,34))}${lbl.length>34?'…':''}<div class="evbar"><span style="width:${stagePct(ev.estagio)}%"></span></div></div>`}).join('')}</div>`;
+      ${evs.map(ev=>{const entry=(ev.historico||[]).filter(h=>h.estagio===ev.estagio).pop();const hora=entry&&entry.hora?' ('+entry.hora+')':'';const lbl=`${ev.cliente?ev.cliente+' — ':''}${ev.titulo} · ${shortLab(ev.estagio)}${hora}`;
+        return `<div class="ev" style="background:${EVC[ev.objetivo]}" onclick="openV('${ev.id}')" title="${ev.cliente?esc(ev.cliente)+' · ':''}${esc(ev.titulo)} · ${SLAB[ev.estagio]}${hora}">${esc(lbl.slice(0,34))}${lbl.length>34?'…':''}<div class="evbar"><span style="width:${stagePct(ev.estagio)}%"></span></div></div>`}).join('')}</div>`;
   }
   $('#calBody').innerHTML=cells;
 }
@@ -562,7 +565,7 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Pipeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências']};
 const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()']};
 function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
