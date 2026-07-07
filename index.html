@@ -272,7 +272,7 @@ button{font-family:inherit}
     <section class="view" id="fin">
       <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span id="finEyeBtn"></span></div>
       <div class="stats" id="finStats"></div>
-      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
+      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
@@ -749,6 +749,29 @@ function siRowHtml(si){
     <div class="fld"><label>Saldo disponível hoje (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
 }
 function addSiRow(){$('#siRows').insertAdjacentHTML('beforeend',siRowHtml(null))}
+function openReservaMov(){
+  openModal(`<div class="mtop"><h3>Movimentar reserva</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="fld"><label>Conta</label><select id="rm_banco">${RESERVE_BANCOS.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Tipo</label><select id="rm_tipo"><option value="entrada">Entrada (guardar na reserva)</option><option value="saida">Saída (resgatar da reserva)</option></select></div>
+      <div class="fld"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="rm_valor" placeholder="0,00"></div>
+      <div class="fld"><label>Descrição (opcional)</label><input id="rm_desc" placeholder="Ex: Depósito mensal"></div>
+      <div class="fld"><label>Data</label><input type="date" id="rm_data" value="${todayISO()}"></div>
+      <button class="msave" onclick="saveReservaMov()">Salvar</button>
+    </div>`);
+}
+function saveReservaMov(){
+  const banco=$('#rm_banco').value;
+  const tipo=$('#rm_tipo').value;
+  const valor=parseFloat($('#rm_valor').value)||0;
+  if(valor<=0){alert('Informe um valor válido.');return}
+  const data=$('#rm_data').value||todayISO();
+  const desc=$('#rm_desc').value.trim()||(tipo==='entrada'?'Depósito na reserva':'Retirada da reserva');
+  const f={id:uid(),tipo,descricao:desc,cliente:'',valor,formaPagamento:'transferencia',banco,vencimento:data,status:'pago',dataPagamento:data};
+  (store.financeiro=store.financeiro||[]).push(f);
+  closeM();render();toast('Reserva atualizada ✓');
+  sb.from('financeiro').insert(finToDb(f)).then(sbErr);
+}
 function openSaldoInicial(){
   const items=store.saldosIniciais&&store.saldosIniciais.length?store.saldosIniciais:[null,null];
   openModal(`<div class="mtop"><h3>Saldo inicial por conta</h3><span class="x" onclick="closeM()">✕</span></div>
