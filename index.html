@@ -250,6 +250,7 @@ button{font-family:inherit}
   </header>
   <div class="content">
     <section class="view on" id="dash">
+      <div class="panel" style="margin-bottom:20px"><h2>🌐 Resumo geral — todos os clientes <span class="tag" id="resumoClientesN"></span></h2><div id="resumoGeral" style="padding:6px 19px 14px"></div></div>
       <div class="stats" id="stats"></div>
       <div class="grid2">
         <div class="panel"><h2>▦ Produção <span class="tag" id="prodTag"></span><select id="editorFilterDash" onchange="setEditorFilter(this.value)" style="margin-left:8px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);font-weight:600"></select></h2><div class="plist" id="dashList"></div></div>
@@ -411,8 +412,29 @@ function renderEditorFilters(V){
   const p=$('#editorFilterPipe');if(p)p.innerHTML=opts;
   if(editorFilter!=='all'&&!editors.includes(editorFilter))editorFilter='all';
 }
+function renderResumoGeral(){
+  const clients=store.clients||[];
+  $('#resumoClientesN').textContent=clients.length+' cliente(s)';
+  const rows=clients.map(cl=>{
+    const V=cl.videos||[];
+    const prod=V.filter(v=>['agendado','roteiro','captacao','edicao','modificacoes'].includes(v.estagio)).length;
+    const mods=V.filter(v=>v.estagio==='modificacoes').length;
+    const futuras=V.filter(v=>!['publicado','finalizado'].includes(v.estagio)&&v.entrega).map(v=>v.entrega).sort();
+    const prox=futuras.find(d=>d>=todayISO())||futuras[0];
+    return{id:cl.id,nome:cl.brand.name,logoImg:cl.brand.logoImg,accent:cl.brand.accent,logo:cl.brand.logo,prod,mods,prox};
+  });
+  $('#resumoGeral').innerHTML=rows.length?`
+    <div class="finperiod-row finperiod-head"><span>Cliente</span><span>Em produção</span><span>Modificações</span><span>Próxima entrega</span></div>
+    ${rows.map(r=>`<div class="finperiod-row" style="cursor:pointer" onclick="switchClient('${r.id}')">
+      <span style="display:flex;align-items:center;gap:8px;font-weight:700">${r.logoImg?`<img src="${r.logoImg}" style="width:20px;height:20px;border-radius:5px;object-fit:cover">`:`<span style="width:20px;height:20px;border-radius:5px;background:${r.accent};color:#fff;font-size:10px;display:grid;place-items:center;font-weight:800;flex-shrink:0">${esc(r.logo||'?')}</span>`}${esc(r.nome)}${r.id===store.current?' <span style="color:var(--accent);font-weight:600">(atual)</span>':''}</span>
+      <span>${r.prod}</span>
+      <span style="color:${r.mods?'#E11D48':'var(--muted)'};font-weight:${r.mods?'700':'400'}">${r.mods}</span>
+      <span>${r.prox?fmtD(r.prox):'—'}</span>
+    </div>`).join('')}
+  `:'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
+}
 function render(){
-  const c=cur();applyBrand();renderClientSelect();
+  const c=cur();applyBrand();renderClientSelect();renderResumoGeral();
   const V=c.videos;
   renderEditorFilters(V);
   const Vf=editorFilter==='all'?V:V.filter(v=>v.editor===editorFilter);
