@@ -17,9 +17,19 @@
 <style>
 :root{
   --navy:#0B2545; --navy-2:#13315C; --steel:#134074; --accent:#EF7B24; --accent-2:#F59E0B;
-  --bg:#F1F4F9; --card:#FFFFFF; --line:#E2E8F0; --muted:#64748B; --text:#1E293B;
+  --bg:#F1F4F9; --card:#FFFFFF; --line:#E2E8F0; --muted:#64748B; --text:#1E293B; --hover:#F8FAFC;
   --green:#16A34A; --amber:#D97706; --blue:#2563EB; --violet:#7C3AED;
   --sh:0 1px 2px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161C; --card:#1B212B; --line:#2A313D; --muted:#8B95A5; --text:#E7EBF2; --hover:#232A35;
+    --sh:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161C; --card:#1B212B; --line:#2A313D; --muted:#8B95A5; --text:#E7EBF2; --hover:#232A35;
+  --sh:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
@@ -55,6 +65,7 @@ button{font-family:inherit}
 .view{display:none;animation:fade .3s ease}
 .view.on{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
 #stats{grid-template-columns:repeat(3,1fr)}
 #finStats{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
@@ -72,7 +83,7 @@ button{font-family:inherit}
 .panel h2 .tag{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted)}
 .plist{padding:4px 0}
 .prow{display:flex;flex-direction:column;align-items:stretch;gap:12px;padding:14px 19px;border-bottom:1px solid #F1F5F9;cursor:pointer;transition:.12s}
-.prow:last-child{border-bottom:none}.prow:hover{background:#F8FAFC}
+.prow:last-child{border-bottom:none}.prow:hover{background:var(--hover)}
 .prow-top{display:flex;align-items:center;gap:12px}
 .prow-top .info{flex:1;min-width:0}
 .mini{display:flex;padding:2px 4px 0}
@@ -159,7 +170,7 @@ button{font-family:inherit}
 .empty{text-align:center;color:var(--muted);padding:46px;font-size:14px}
 .overlay{position:fixed;inset:0;background:rgba(11,37,69,.55);backdrop-filter:blur(3px);display:none;place-items:center;z-index:50;padding:20px}
 .overlay.on{display:grid}
-.modal{background:#fff;border-radius:18px;max-width:540px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden;animation:pop .25s ease;max-height:92vh;overflow-y:auto}
+.modal{background:var(--card);color:var(--text);border-radius:18px;max-width:540px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden;animation:pop .25s ease;max-height:92vh;overflow-y:auto}
 @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 .mtop{padding:20px 24px 0;display:flex;align-items:center}
 .mtop h3{font-size:18px;font-weight:800}
@@ -167,7 +178,7 @@ button{font-family:inherit}
 .mb{padding:16px 24px 24px}
 .fld{margin-bottom:14px}
 .fld label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}
-.fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff}
+.fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit;background:var(--card);color:var(--text)}
 .fld textarea{resize:vertical;min-height:70px}
 .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--accent)}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -196,7 +207,7 @@ button{font-family:inherit}
 .sw.on{border-color:#0B2545}
 @media(max-width:1000px){.stats{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.board{grid-template-columns:1fr}.side{width:60px}.brand .n,.brand .s,.nav button .lbl,.cliSel,.side .foot .lbl{display:none}.mobileCliSel{display:block;max-width:130px;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:12px;background:#fff;color:var(--text)}.top{gap:8px;padding:12px 14px}.top h1{font-size:16px}.top .sub{display:none}.add{padding:9px 12px;font-size:12px;white-space:nowrap}}
 .loginwrap{position:fixed;inset:0;background:linear-gradient(160deg,var(--navy),var(--navy-2));display:grid;place-items:center;z-index:100}
-.loginbox{background:#fff;border-radius:18px;padding:32px 30px;width:100%;max-width:360px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.loginbox{background:var(--card);color:var(--text);border-radius:18px;padding:32px 30px;width:100%;max-width:360px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .loginbox h1{font-size:19px;font-weight:800;margin-bottom:4px}
 .loginbox .s{font-size:13px;color:var(--muted);margin-bottom:20px}
 .loginbox .fld{margin-bottom:14px}
@@ -219,6 +230,12 @@ button{font-family:inherit}
     </div>
     <button class="msave" onclick="doLogin()">Entrar</button>
     <button type="button" onclick="forgotPassword()" style="all:unset;cursor:pointer;display:block;text-align:center;width:100%;margin-top:14px;font-size:12.5px;color:var(--muted);font-weight:600">Esqueci minha senha</button>
+  </div>
+</div>
+<div id="loadingOverlay" class="hidden" style="position:fixed;inset:0;background:var(--navy);display:grid;place-items:center;z-index:200">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+    <div style="width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--accent);animation:spin .8s linear infinite"></div>
+    <div style="color:#C7D5E8;font-size:13px;font-weight:600">Carregando seus dados...</div>
   </div>
 </div>
 <div id="appRoot" class="hidden" style="display:flex;min-height:100vh;width:100%">
@@ -248,6 +265,7 @@ button{font-family:inherit}
     <button class="sbtn" onclick="exportAll()">💾 <span class="lbl">Backup completo (todos os clientes + financeiro)</span></button>
     <button class="sbtn" onclick="escolherPastaBackup()">📁 <span class="lbl">Escolher pasta de backup local</span></button>
     <div class="sbtn" style="opacity:.7;font-size:11px;cursor:default" id="pastaBackupLbl">Nenhuma pasta escolhida (salva na pasta de Downloads)</div>
+    <button class="sbtn" onclick="toggleTheme()" id="themeBtn">🌙 <span class="lbl">Modo escuro</span></button>
     <button class="sbtn" onclick="doLogout()">🚪 <span class="lbl">Sair</span></button>
   </div>
 </aside>
@@ -337,6 +355,19 @@ const nowHora=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0'
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  lsSet('theme',t);
+  const btn=$('#themeBtn');
+  if(btn)btn.innerHTML=t==='dark'?'☀️ <span class="lbl">Modo claro</span>':'🌙 <span class="lbl">Modo escuro</span>';
+}
+function toggleTheme(){applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')}
+(function initTheme(){
+  const saved=lsGet('theme');
+  const preferred=saved||(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  applyTheme(preferred);
+})();
+
 function seedClient(name){
   return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Montanha Studio',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase(),logoImg:''},videos:[]};
 }
@@ -418,7 +449,7 @@ function renderClientSelect(){
   $('#cliSelect').innerHTML=opts;
   const m=$('#cliSelectMobile');if(m)m.innerHTML=opts;
 }
-const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const fmtD=d=>{if(!d)return'—';const p=d.split('-');return p[2]+'/'+p[1]};
 
 function miniStepper(v){
@@ -668,6 +699,29 @@ function historyHtml(v){
 }
 function openModal(html){$('#modal').innerHTML=html;$('#overlay').classList.add('on')}
 function closeM(){$('#overlay').classList.remove('on')}
+function confirmDialog(msg){
+  return new Promise(resolve=>{
+    const prevHTML=$('#modal').innerHTML;
+    const wasOpen=$('#overlay').classList.contains('on');
+    $('#modal').innerHTML=`
+      <div class="mtop"><h3>Confirmar ação</h3></div>
+      <div class="mb">
+        <p style="font-size:14px;color:var(--text);line-height:1.5;margin-bottom:18px">${esc(msg)}</p>
+        <div style="display:flex;gap:10px">
+          <button class="msave" style="background:var(--line);color:var(--text);flex:1" id="confirmCancelBtn">Cancelar</button>
+          <button class="msave" style="background:#DC2626;flex:1" id="confirmOkBtn">Confirmar</button>
+        </div>
+      </div>`;
+    $('#overlay').classList.add('on');
+    const cleanup=result=>{
+      if(result){$('#overlay').classList.remove('on')}
+      else{$('#modal').innerHTML=prevHTML;if(!wasOpen)$('#overlay').classList.remove('on')}
+      resolve(result);
+    };
+    $('#confirmOkBtn').onclick=()=>cleanup(true);
+    $('#confirmCancelBtn').onclick=()=>cleanup(false);
+  });
+}
 $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeM()});
 
 function openV(id){
@@ -718,8 +772,8 @@ function saveV(id){
   closeM();render();toast('Vídeo salvo ✓');
   sb.from('videos').update(videoToDb(v,cur().id)).eq('id',id).then(sbErr);
 }
-function delV(id){
-  if(!confirm('Excluir este vídeo?'))return;
+async function delV(id){
+  if(!(await confirmDialog('Excluir este vídeo?')))return;
   const c=cur();const v=c.videos.find(x=>x.id===id);
   const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then(sbErr)};
   if(v)gcalDeleteEvent(v,finish);else finish();
@@ -805,14 +859,14 @@ function saveFin(id,isNew){
   closeM();render();toast(parcelas>1?`Lançamento dividido em ${parcelas}x ✓`:'Lançamento salvo ✓');
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
-function delFin(id){
-  if(!confirm('Excluir este lançamento?'))return;
+async function delFin(id){
+  if(!(await confirmDialog('Excluir este lançamento?')))return;
   store.financeiro=store.financeiro.filter(x=>x.id!==id);
   closeM();render();toast('Lançamento excluído');
   sb.from('financeiro').delete().eq('id',id).then(sbErr);
 }
-function clearFinanceiro(){
-  if(!confirm('Isso vai apagar TODOS os lançamentos (entradas e saídas) registrados até agora. O saldo inicial definido não é afetado. Confirma?'))return;
+async function clearFinanceiro(){
+  if(!(await confirmDialog('Isso vai apagar TODOS os lançamentos (entradas e saídas) registrados até agora. O saldo inicial definido não é afetado. Confirma?')))return;
   const ids=store.financeiro.map(f=>f.id);
   store.financeiro=[];
   render();toast('Lançamentos limpos ✓');
@@ -922,8 +976,8 @@ function saveProp(id){
   closeM();renderPropostas();toast('Proposta salva ✓');
   sb.from('propostas').update(propToDb(p)).eq('id',id).then(sbErr);
 }
-function delProp(id){
-  if(!confirm('Excluir esta proposta?'))return;
+async function delProp(id){
+  if(!(await confirmDialog('Excluir esta proposta?')))return;
   store.propostas=store.propostas.filter(x=>x.id!==id);
   closeM();renderPropostas();toast('Proposta excluída');
   sb.from('propostas').delete().eq('id',id).then(sbErr);
@@ -1128,9 +1182,9 @@ function newClient(){
   render();go('dash');toast('Cliente criado ✓');
   sb.from('clients').insert({id:c.id,name:c.brand.name,sub:c.brand.sub,accent:c.brand.accent,logo:c.brand.logo,logo_img:''}).then(sbErr);
 }
-function delClient(){
+async function delClient(){
   if(store.clients.length<=1){alert('Deixe ao menos um cliente.');return}
-  if(!confirm('Excluir este cliente e todos os dados dele?'))return;
+  if(!(await confirmDialog('Excluir este cliente e todos os dados dele?')))return;
   const idToDelete=store.current;
   store.clients=store.clients.filter(c=>c.id!==idToDelete);store.current=store.clients[0].id;lsSet('lastClientId',store.current);
   closeM();render();go('dash');toast('Cliente excluído');
@@ -1265,6 +1319,8 @@ async function loadPermissions(){
   if(navBtn)navBtn.style.display=canViewFinanceiro?'':'none';
 }
 async function boot(){
+  $('#loginwrap').classList.add('hidden');
+  $('#loadingOverlay').classList.remove('hidden');
   await loadPermissions();
   await fetchAll();
   if(!store.clients.length){
@@ -1272,7 +1328,7 @@ async function boot(){
     await sb.from('clients').insert({id:c.id,name:c.brand.name,sub:c.brand.sub,accent:c.brand.accent,logo:c.brand.logo,logo_img:''});
     await fetchAll();
   }
-  $('#loginwrap').classList.add('hidden');
+  $('#loadingOverlay').classList.add('hidden');
   $('#appRoot').classList.remove('hidden');
   render();
   atualizarLabelPastaBackup();
