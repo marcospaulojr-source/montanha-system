@@ -250,14 +250,15 @@ button{font-family:inherit}
   </header>
   <div class="content">
     <section class="view on" id="dash">
-      <div class="panel" style="margin-bottom:20px"><h2>🌐 Resumo geral — todos os clientes <span class="tag" id="resumoClientesN"></span></h2><div id="resumoGeral" style="padding:6px 19px 14px"></div></div>
       <div class="stats" id="stats"></div>
       <div class="grid2">
         <div class="panel"><h2>▦ Produção <span class="tag" id="prodTag"></span><select id="editorFilterDash" onchange="setEditorFilter(this.value)" style="margin-left:8px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);font-weight:600"></select></h2><div class="plist" id="dashList"></div></div>
         <div class="stack">
           <div class="panel"><h2>✎ Modificações solicitadas <span class="tag" id="modsN">0</span></h2><div class="plist" id="dashMods"></div></div>
+          <div class="panel"><h2>📋 Descrição dos serviços <span class="tag" id="descServN">0</span></h2><div class="plist" id="dashDescServ"></div></div>
         </div>
       </div>
+      <div class="panel" style="margin-top:20px"><h2>🌐 Resumo geral — todos os clientes <span class="tag" id="resumoClientesN"></span></h2><div id="resumoGeral" style="padding:6px 19px 14px"></div></div>
     </section>
     <section class="view" id="pipe">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="font-size:12.5px;font-weight:600;color:var(--muted)">Filtrar por editor:</span><select id="editorFilterPipe" onchange="setEditorFilter(this.value)" style="font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:6px 9px"></select></div>
@@ -460,6 +461,12 @@ function render(){
     <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,#E11D48,#BE123C)'}">${thumbInner('✎')}</div>
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div>${v.descricaoServico?`<div class="m" style="color:var(--text)">${esc(v.descricaoServico)}</div>`:''}<div class="m">${v.mods?esc(v.mods):'Sem detalhes registrados'}</div></div><span class="st" style="color:#E11D48">Ver →</span></div>`).join('')
     :'<div class="empty">Nenhuma modificação pendente.</div>';
+  const comDesc=V.filter(v=>v.descricaoServico&&v.descricaoServico.trim());
+  $('#descServN').textContent=comDesc.length;
+  $('#dashDescServ').innerHTML=comDesc.length?comDesc.map(v=>`
+    <div class="prow" onclick="openV('${v.id}')"><div class="thumb">${thumbInner('📋')}</div>
+      <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">${esc(v.descricaoServico)}</div></div></div>`).join('')
+    :'<div class="empty">Nenhuma tarefa com descrição do serviço preenchida.</div>';
   $('#board').innerHTML=STAGES.map(([k,lab])=>{
     const vs=Vf.filter(v=>v.estagio===k);
     return `<div class="col" data-stage="${k}"><h3><span class="stagedot" style="background:${STAGE_COLOR[k]}"></span>${lab}<span class="ct">${vs.length}</span></h3>
