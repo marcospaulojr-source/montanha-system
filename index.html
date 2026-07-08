@@ -229,6 +229,7 @@ button{font-family:inherit}
   </div>
   <nav class="nav" id="nav">
     <button data-v="dash" class="on"><span class="ic">▤</span><span class="lbl">Dashboard</span></button>
+    <button data-v="cli"><span class="ic">👥</span><span class="lbl">Clientes</span></button>
     <button data-v="pipe"><span class="ic">▦</span><span class="lbl">Timeline</span></button>
     <button data-v="cal"><span class="ic">▧</span><span class="lbl">Calendário</span></button>
     <button data-v="prop"><span class="ic">🧾</span><span class="lbl">Propostas</span></button>
@@ -279,6 +280,9 @@ button{font-family:inherit}
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
+    </section>
+    <section class="view" id="cli">
+      <div class="panel"><h2>👥 Clientes <span class="tag" id="cliN">0</span></h2><div class="plist" id="cliList"></div></div>
     </section>
     <section class="view" id="prop">
       <div class="panel"><h2>🧾 Propostas de orçamento <span class="tag" id="propN">0</span></h2><div class="plist" id="propList"></div></div>
@@ -351,7 +355,7 @@ async function fetchAll(){
     sb.from('app_config').select('*').eq('id',1).limit(1),
     sb.from('propostas').select('*').order('created_at')
   ]);
-  const clients=(clientsRows||[]).map(c=>({id:c.id,brand:{name:c.name,sub:c.sub,accent:c.accent,logo:c.logo,logoImg:c.logo_img||''},videos:[]}));
+  const clients=(clientsRows||[]).map(c=>({id:c.id,brand:{name:c.name,sub:c.sub,accent:c.accent,logo:c.logo,logoImg:c.logo_img||''},videos:[],responsavel:c.responsavel||'',telefone:c.telefone||'',email:c.email||'',instagram:c.instagram||'',razaoSocial:c.razao_social||'',cnpj:c.cnpj||'',endereco:c.endereco||'',valorMensal:Number(c.valor_mensal)||0,diaVencimento:c.dia_vencimento||null,dataInicioContrato:c.data_inicio_contrato||'',status:c.status||'ativo',observacoes:c.observacoes||''}));
   (videoRows||[]).forEach(row=>{const c=clients.find(x=>x.id===row.client_id);if(c)c.videos.push(dbToVideo(row))});
   const lastId=lsGet('lastClientId');
   const current=(clients.find(c=>c.id===lastId)||clients[0]||{}).id||null;
@@ -494,7 +498,7 @@ function render(){
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}</span></div>${miniDots(v)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
-  renderCal();renderFin();renderPropostas();save();
+  renderCal();renderFin();renderPropostas();renderClientesCRM();save();
 }
 
 function renderCal(){
@@ -630,8 +634,8 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais']};
-const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais']};
+const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()']};
 function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
@@ -797,6 +801,66 @@ function clearFinanceiro(){
   if(ids.length)sb.from('financeiro').delete().in('id',ids).then(sbErr);
 }
 
+function clientCrmToDb(c){
+  return {responsavel:c.responsavel||'',telefone:c.telefone||'',email:c.email||'',instagram:c.instagram||'',razao_social:c.razaoSocial||'',cnpj:c.cnpj||'',endereco:c.endereco||'',valor_mensal:c.valorMensal||0,dia_vencimento:c.diaVencimento||null,data_inicio_contrato:c.dataInicioContrato||null,status:c.status||'ativo',observacoes:c.observacoes||''};
+}
+function openClienteInfo(id){
+  const c=store.clients.find(x=>x.id===id);
+  openModal(`<div class="mtop"><h3>${esc(c.brand.name)}</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="frow">
+        <div class="fld"><label>Responsável / Contato</label><input id="c_resp" value="${esc(c.responsavel||'')}" placeholder="Ex: Dr. Paulo Monnerat"></div>
+        <div class="fld"><label>Status</label><select id="c_status"><option value="ativo" ${c.status==='ativo'?'selected':''}>Ativo</option><option value="inativo" ${c.status==='inativo'?'selected':''}>Inativo</option></select></div>
+      </div>
+      <div class="frow">
+        <div class="fld"><label>Telefone/WhatsApp</label><input id="c_tel" value="${esc(c.telefone||'')}" placeholder="(22) 98846-1845"></div>
+        <div class="fld"><label>E-mail</label><input type="email" id="c_email" value="${esc(c.email||'')}"></div>
+      </div>
+      <div class="fld"><label>Instagram/Site</label><input id="c_insta" value="${esc(c.instagram||'')}" placeholder="@cliente ou www.cliente.com"></div>
+      <div class="frow">
+        <div class="fld"><label>Razão social</label><input id="c_razao" value="${esc(c.razaoSocial||'')}"></div>
+        <div class="fld"><label>CNPJ/CPF</label><input id="c_cnpj" value="${esc(c.cnpj||'')}"></div>
+      </div>
+      <div class="fld"><label>Endereço</label><input id="c_end" value="${esc(c.endereco||'')}"></div>
+      <div class="frow">
+        <div class="fld"><label>Valor mensal (R$)</label><input type="number" step="0.01" min="0" id="c_valor" value="${c.valorMensal||''}"></div>
+        <div class="fld"><label>Dia de vencimento</label><input type="number" min="1" max="31" id="c_venc" value="${c.diaVencimento||''}"></div>
+      </div>
+      <div class="fld"><label>Início do contrato</label><input type="date" id="c_inicio" value="${c.dataInicioContrato||''}"></div>
+      <div class="fld"><label>Observações</label><textarea id="c_obs" placeholder="Anotações gerais sobre o cliente...">${esc(c.observacoes||'')}</textarea></div>
+      <button class="msave" onclick="saveClienteInfo('${id}')">Salvar informações</button>
+    </div>`);
+}
+function saveClienteInfo(id){
+  const c=store.clients.find(x=>x.id===id);
+  c.responsavel=$('#c_resp').value.trim();
+  c.status=$('#c_status').value;
+  c.telefone=$('#c_tel').value.trim();
+  c.email=$('#c_email').value.trim();
+  c.instagram=$('#c_insta').value.trim();
+  c.razaoSocial=$('#c_razao').value.trim();
+  c.cnpj=$('#c_cnpj').value.trim();
+  c.endereco=$('#c_end').value.trim();
+  c.valorMensal=parseFloat($('#c_valor').value)||0;
+  c.diaVencimento=parseInt($('#c_venc').value)||null;
+  c.dataInicioContrato=$('#c_inicio').value||'';
+  c.observacoes=$('#c_obs').value.trim();
+  closeM();renderClientesCRM();toast('Informações do cliente salvas ✓');
+  sb.from('clients').update(clientCrmToDb(c)).eq('id',id).then(sbErr);
+}
+function renderClientesCRM(){
+  const list=$('#cliList');if(!list)return;
+  const C=store.clients||[];
+  $('#cliN').textContent=C.length;
+  list.innerHTML=C.length?C.slice().sort((a,b)=>a.brand.name.localeCompare(b.brand.name,'pt-BR')).map(c=>`
+    <div class="prow" onclick="openClienteInfo('${c.id}')">
+      <div class="prow-top">
+        <div class="thumb" style="${c.brand.logoImg?'':'background:'+c.brand.accent}">${c.brand.logoImg?`<img src="${c.brand.logoImg}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:esc(c.brand.logo||'?')}</div>
+        <div class="info"><div class="t">${esc(c.brand.name)}</div><div class="m">${c.responsavel?esc(c.responsavel):'Sem responsável definido'}${c.telefone?' · '+esc(c.telefone):''}${c.email?' · '+esc(c.email):''}${c.valorMensal?' · '+fmtBRL(c.valorMensal)+'/mês':''}</div></div>
+        <span class="stagechip" style="background:${c.status==='inativo'?'#94A3B8':'var(--green)'}">${c.status==='inativo'?'Inativo':'Ativo'}</span>
+      </div>
+    </div>`).join(''):'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
+}
 function addProposta(){
   const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,servicos:[...DEFAULT_SERVICOS],equipamentos:[...DEFAULT_EQUIPAMENTOS],investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
