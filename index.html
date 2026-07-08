@@ -465,7 +465,7 @@ function render(){
   $('#descServN').textContent=comDesc.length;
   $('#dashDescServ').innerHTML=comDesc.length?comDesc.map(v=>`
     <div class="prow" onclick="openV('${v.id}')"><div class="thumb">${thumbInner('📋')}</div>
-      <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">${esc(v.descricaoServico)}</div></div></div>`).join('')
+      <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m" style="color:var(--text);font-weight:600;font-size:14px">${esc(v.descricaoServico)}</div></div></div>`).join('')
     :'<div class="empty">Nenhuma tarefa com descrição do serviço preenchida.</div>';
   $('#board').innerHTML=STAGES.map(([k,lab])=>{
     const vs=Vf.filter(v=>v.estagio===k);
