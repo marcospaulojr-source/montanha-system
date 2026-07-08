@@ -467,7 +467,7 @@ function render(){
     <div class="prow" onclick="openV('${v.id}')"><div class="prow-top">
       <div class="thumb">${thumbInner('📋')}</div>
       <div style="flex:0 0 auto;max-width:180px;min-width:0">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div></div>
-      <div class="m" style="flex:1;min-width:0;color:var(--text);font-weight:600;font-size:14px">${esc(v.descricaoServico)}</div>
+      <div style="flex:1;min-width:0;padding-left:16px;margin-left:4px;border-left:2px solid #E2E8F0"><div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Descrição</div><div class="m" style="color:var(--text);font-weight:600;font-size:14px">${esc(v.descricaoServico)}</div></div>
     </div></div>`).join('')
     :'<div class="empty">Nenhuma tarefa com descrição do serviço preenchida.</div>';
   $('#board').innerHTML=STAGES.map(([k,lab])=>{
