@@ -480,7 +480,7 @@ function render(){
   $('#dashList').innerHTML=Vf.length?Vf.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
       <div class="prow-top"><div class="thumb">${thumbInner('▶')}</div>
-        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div>${v.descricaoServico?`<div class="m" style="color:var(--text)">${esc(v.descricaoServico)}</div>`:''}<div class="m">Entrega ${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
+        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
         <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
