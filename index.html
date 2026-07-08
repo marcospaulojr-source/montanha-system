@@ -851,16 +851,28 @@ function renderPropostas(){
   const list=$('#propList');if(!list)return;
   $('#propN').textContent=P.length;
   const chip=(txt,bg,fg)=>`<span style="display:inline-block;background:${bg};color:${fg};font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;margin:2px 4px 0 0">${esc(txt)}</span>`;
-  list.innerHTML=P.length?P.slice().sort((a,b)=>(b.data||'').localeCompare(a.data||'')).map(p=>`
+  const cardHtml=p=>`
     <div class="prow" onclick="openProp('${p.id}')" style="flex-direction:column;align-items:stretch">
       <div class="prow-top"><div class="thumb" style="background:linear-gradient(135deg,var(--accent),#D9601A)">🧾</div>
-        <div class="info">${p.cliente?`<div class="cliname">${esc(p.cliente)}</div>`:''}<div class="t">${esc(p.titulo||'(sem título)')}</div><div class="m">${p.data?fmtD(p.data):''}${p.validadeDias?' · Validade '+p.validadeDias+' dias':''}</div></div>
+        <div class="info"><div class="t">${esc(p.titulo||'(sem título)')}</div><div class="m">${p.data?fmtD(p.data):''}${p.validadeDias?' · Validade '+p.validadeDias+' dias':''}</div></div>
         <span class="finval" style="color:var(--accent)">${fmtBRL(p.investimento)}</span></div>
       ${(p.servicos&&p.servicos.length)||(p.equipamentos&&p.equipamentos.length)?`<div style="padding-left:52px">
         ${p.servicos&&p.servicos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</span><br>${p.servicos.map(s=>chip(s,'#FFF1E6','#B45309')).join('')}</div>`:''}
         ${p.equipamentos&&p.equipamentos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Equipamentos</span><br>${p.equipamentos.map(s=>chip(s,'#EFF6FF','#1D4ED8')).join('')}</div>`:''}
       </div>`:''}
-    </div>`).join(''):'<div class="empty">Nenhuma proposta criada ainda.</div>';
+      <div style="padding-left:52px;margin-top:10px;display:flex;gap:8px">
+        <button style="background:#0F766E;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="event.stopPropagation();gerarPropostaPDF('${p.id}')">📄 Gerar PDF</button>
+        <button style="background:#2563EB;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="event.stopPropagation();enviarPropostaEmail('${p.id}')">📧 Enviar por e-mail</button>
+      </div>
+    </div>`;
+  if(!P.length){list.innerHTML='<div class="empty">Nenhuma proposta criada ainda.</div>';return}
+  const groups={};
+  P.forEach(p=>{const k=(p.cliente&&p.cliente.trim())||'Sem cliente definido';(groups[k]=groups[k]||[]).push(p)});
+  const clientKeys=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  list.innerHTML=clientKeys.map(k=>{
+    const items=groups[k].slice().sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+    return `<div class="propgroup"><div style="font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:12px 19px 4px;background:#FFF7ED">${esc(k)} <span style="color:var(--muted);font-weight:600">(${items.length})</span></div>${items.map(cardHtml).join('')}</div>`;
+  }).join('');
 }
 function gerarPropostaPDF(id){
   const p=store.propostas.find(x=>x.id===id);
