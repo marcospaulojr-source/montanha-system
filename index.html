@@ -302,6 +302,15 @@ const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao:'Cartão',transferencia:'Tra
 const BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
 const RESERVE_BANCOS=['Nubank Caixinha Roxa','Nubank Caixinha'];
 const bancoOptions=sel=>`<option value="">Selecione...</option>${BANCOS.map(b=>`<option value="${b}" ${sel===b?'selected':''}>${b}</option>`).join('')}`;
+function clienteOptions(sel){
+  const names=(store.clients||[]).map(c=>c.brand.name).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  return `<option value="">Selecione um cliente...</option>${names.map(n=>`<option value="${esc(n)}" ${sel===n?'selected':''}>${esc(n)}</option>`).join('')}`;
+}
+const CLIENT_COLORS=['#EF7B24','#2563EB','#0F766E','#7C3AED','#DB2777','#D97706','#0891B2','#16A34A','#DC2626','#4F46E5'];
+function clienteColor(name){
+  let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;
+  return CLIENT_COLORS[h%CLIENT_COLORS.length];
+}
 const fmtBRL=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function finStatus(f){if(f.status==='pago')return'pago';if(f.vencimento&&f.vencimento<todayISO())return'atrasado';return'pendente'}
 const SLAB=Object.fromEntries(STAGES);
@@ -341,7 +350,7 @@ function finToDb(f){
 }
 function finLiquido(f){return(f.valor||0)-(f.desconto||0)}
 function dbToProp(row){
-  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,servicos:row.servicos||[],equipamentos:row.equipamentos||[],investimento:Number(row.investimento)||0,observacoes:row.observacoes||''};
+  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,servicos:row.servicos||[],equipamentos:row.equipamentos||[],investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
 }
 function propToDb(p){
   return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,servicos:p.servicos||[],equipamentos:p.equipamentos||[],investimento:p.investimento||0,observacoes:p.observacoes||''};
@@ -656,7 +665,7 @@ function openV(id){
   const v=cur().videos.find(x=>x.id===id);const si=STAGES.findIndex(s=>s[0]===v.estagio);
   openModal(`<div class="mtop"><h3>Detalhe do vídeo</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="fld"><label>Nome do cliente</label><input id="e_cliente" value="${esc(v.cliente)}" placeholder="Ex: Transcouto Transportes"></div>
+      <div class="fld"><label>Cliente</label><select id="e_cliente">${clienteOptions(v.cliente)}</select></div>
       <div class="fld"><label>Editor responsável</label><input id="e_editor" value="${esc(v.editor||'')}" placeholder="Ex: João"></div>
       <div class="fld"><label>Título</label><input id="e_titulo" value="${esc(v.titulo)}"></div>
       <div class="fld"><label>Descrição do serviço</label><textarea id="e_descServico" placeholder="Ex: Gravação e edição de vídeo institucional para Instagram">${esc(v.descricaoServico||'')}</textarea></div>
@@ -721,7 +730,7 @@ function openFin(id,isNew){
     <div class="mb">
       <div class="fld"><label>Tipo</label><select id="f_tipo"><option value="entrada" ${f.tipo==='entrada'?'selected':''}>Entrada</option><option value="saida" ${f.tipo==='saida'?'selected':''}>Saída</option></select></div>
       <div class="fld"><label>Descrição</label><input id="f_desc" value="${esc(f.descricao)}" placeholder="Ex: Pagamento vídeo institucional"></div>
-      <div class="fld"><label>Cliente (opcional)</label><input id="f_cliente" value="${esc(f.cliente||'')}" placeholder="Ex: Transcouto Transportes"></div>
+      <div class="fld"><label>Cliente (opcional)</label><select id="f_cliente">${clienteOptions(f.cliente||'')}</select></div>
       <div class="frow">
         <div class="fld"><label>Valor total (R$)</label><input type="number" step="0.01" min="0" id="f_valor" value="${f.valor||''}"></div>
         <div class="fld"><label>Desconto na fonte (R$)</label><input type="number" step="0.01" min="0" id="f_desconto" value="${f.desconto||''}" placeholder="0,00"></div>
@@ -871,7 +880,7 @@ function openProp(id){
   const p=store.propostas.find(x=>x.id===id);
   openModal(`<div class="mtop"><h3>Proposta de orçamento</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="fld"><label>Cliente</label><input id="p_cliente" value="${esc(p.cliente)}" placeholder="Ex: Dr. Paulo Monnerat"></div>
+      <div class="fld"><label>Cliente</label><select id="p_cliente">${clienteOptions(p.cliente)}</select></div>
       <div class="fld"><label>E-mail do cliente</label><input type="email" id="p_email" value="${esc(p.clienteEmail)}" placeholder="cliente@email.com"></div>
       <div class="fld"><label>Título da proposta</label><input id="p_titulo" value="${esc(p.titulo)}" placeholder="Ex: Produção de 4 vídeos Reels"></div>
       <div class="frow">
@@ -910,16 +919,21 @@ function delProp(id){
   closeM();renderPropostas();toast('Proposta excluída');
   sb.from('propostas').delete().eq('id',id).then(sbErr);
 }
+let propCollapsed=new Set();
+function togglePropFolder(k){
+  if(propCollapsed.has(k))propCollapsed.delete(k);else propCollapsed.add(k);
+  renderPropostas();
+}
 function renderPropostas(){
   const P=store.propostas||[];
   const list=$('#propList');if(!list)return;
   $('#propN').textContent=P.length;
   const chip=(txt,bg,fg)=>`<span style="display:inline-block;background:${bg};color:${fg};font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;margin:2px 4px 0 0">${esc(txt)}</span>`;
-  const cardHtml=p=>`
+  const cardHtml=(p,color)=>`
     <div class="prow" onclick="openProp('${p.id}')" style="flex-direction:column;align-items:stretch">
-      <div class="prow-top"><div class="thumb" style="background:linear-gradient(135deg,var(--accent),#D9601A)">🧾</div>
+      <div class="prow-top"><div class="thumb" style="background:linear-gradient(135deg,${color},${color}CC)">🧾</div>
         <div class="info"><div class="t">${esc(p.titulo||'(sem título)')}</div><div class="m">${p.data?fmtD(p.data):''}${p.validadeDias?' · Validade '+p.validadeDias+' dias':''}</div></div>
-        <span class="finval" style="color:var(--accent)">${fmtBRL(p.investimento)}</span></div>
+        <span class="finval" style="color:${color}">${fmtBRL(p.investimento)}</span></div>
       ${(p.servicos&&p.servicos.length)||(p.equipamentos&&p.equipamentos.length)?`<div style="padding-left:52px">
         ${p.servicos&&p.servicos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</span><br>${p.servicos.map(s=>chip(s,'#FFF1E6','#B45309')).join('')}</div>`:''}
         ${p.equipamentos&&p.equipamentos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Equipamentos</span><br>${p.equipamentos.map(s=>chip(s,'#EFF6FF','#1D4ED8')).join('')}</div>`:''}
@@ -934,8 +948,19 @@ function renderPropostas(){
   P.forEach(p=>{const k=(p.cliente&&p.cliente.trim())||'Sem cliente definido';(groups[k]=groups[k]||[]).push(p)});
   const clientKeys=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'pt-BR'));
   list.innerHTML=clientKeys.map(k=>{
-    const items=groups[k].slice().sort((a,b)=>(b.data||'').localeCompare(a.data||''));
-    return `<div class="propgroup"><div style="font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:12px 19px 4px;background:#FFF7ED">${esc(k)} <span style="color:var(--muted);font-weight:600">(${items.length})</span></div>${items.map(cardHtml).join('')}</div>`;
+    const items=groups[k].slice().sort((a,b)=>(b.createdAt||b.data||'').localeCompare(a.createdAt||a.data||''));
+    const color=clienteColor(k);
+    const collapsed=propCollapsed.has(k);
+    const kAttr=JSON.stringify(k).replace(/'/g,'&#39;');
+    return `<div style="margin-bottom:14px;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
+      <div onclick='togglePropFolder(${kAttr})' style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 16px;background:${color}1A;border-left:5px solid ${color}">
+        <span style="font-size:16px">📁</span>
+        <span style="font-weight:800;font-size:13px;color:${color};text-transform:uppercase;letter-spacing:.03em">${esc(k)}</span>
+        <span style="font-size:11.5px;color:var(--muted);font-weight:600">(${items.length})</span>
+        <span style="margin-left:auto;color:var(--muted);font-size:12px">${collapsed?'▸ mostrar':'▾ ocultar'}</span>
+      </div>
+      ${collapsed?'':items.map(p=>cardHtml(p,color)).join('')}
+    </div>`;
   }).join('');
 }
 function gerarPropostaPDF(id){
