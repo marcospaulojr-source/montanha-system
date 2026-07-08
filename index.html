@@ -984,9 +984,9 @@ async function delProp(id){
   closeM();renderPropostas();toast('Proposta excluída');
   sb.from('propostas').delete().eq('id',id).then(sbErr);
 }
-let propCollapsed=new Set();
+let propExpanded=new Set();
 function togglePropFolder(k){
-  if(propCollapsed.has(k))propCollapsed.delete(k);else propCollapsed.add(k);
+  if(propExpanded.has(k))propExpanded.delete(k);else propExpanded.add(k);
   renderPropostas();
 }
 function renderPropostas(){
@@ -1024,7 +1024,7 @@ function renderPropostas(){
     const label=labels[k];
     const items=groups[k].slice().sort((a,b)=>(b.createdAt||b.data||'').localeCompare(a.createdAt||a.data||''));
     const color=clienteColor(label);
-    const collapsed=propCollapsed.has(k);
+    const collapsed=!propExpanded.has(k);
     const kAttr=JSON.stringify(k).replace(/'/g,'&#39;');
     return `<div style="margin-bottom:14px;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
       <div onclick='togglePropFolder(${kAttr})' style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 16px;background:${color}1A;border-left:5px solid ${color}">
