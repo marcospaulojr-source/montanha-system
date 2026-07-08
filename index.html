@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Montanha Studio</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#EF7B24">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Montanha Studio">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -240,6 +246,8 @@ button{font-family:inherit}
     <button class="sbtn" onclick="exportICS()">📅 <span class="lbl">Exportar p/ Google Agenda (.ics)</span></button>
     <button class="sbtn" onclick="exportClient()">⬇️ <span class="lbl">Exportar cliente (JSON)</span></button>
     <button class="sbtn" onclick="exportAll()">💾 <span class="lbl">Backup completo (todos os clientes + financeiro)</span></button>
+    <button class="sbtn" onclick="escolherPastaBackup()">📁 <span class="lbl">Escolher pasta de backup local</span></button>
+    <div class="sbtn" style="opacity:.7;font-size:11px;cursor:default" id="pastaBackupLbl">Nenhuma pasta escolhida (salva na pasta de Downloads)</div>
     <button class="sbtn" onclick="doLogout()">🚪 <span class="lbl">Sair</span></button>
   </div>
 </aside>
@@ -319,6 +327,7 @@ const EVC={autoridade:'#7C3AED',captacao:'#D97706',redes_sociais:'#0284C7',insti
 const SUPABASE_URL='https://painelmontanhafilmes-supabase.ev4wy7.easypanel.host';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgzNDI5Mjg2LCJleHAiOjIwOTg3ODkyODZ9.DTJ4yN6xpSBFF9pjZGerAPQu-GXNCBwKsgyV2Sfl3_I';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)}));
 const todayISO=()=>new Date().toISOString().slice(0,10);
@@ -1129,10 +1138,50 @@ function delClient(){
 }
 
 function exportClient(){const c=cur();const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(c.brand.name.toLowerCase().replace(/[^a-z0-9]+/g,'-'))+'-painel.json';a.click();toast('Exportado ✓')}
-function exportAll(){
-  const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});
+function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open('montanha-studio-fs',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function idbSet(key,val){const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(val,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function idbGet(key){const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const rq=tx.objectStore('handles').get(key);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>rej(rq.error)})}
+async function escolherPastaBackup(){
+  if(!window.showDirectoryPicker){alert('Esse navegador não permite escolher uma pasta local. Use Chrome ou Edge (no computador).');return}
+  try{
+    const handle=await window.showDirectoryPicker();
+    await idbSet('backupDir',handle);
+    toast('📁 Pasta de backup definida: '+handle.name);
+    atualizarLabelPastaBackup();
+  }catch(e){}
+}
+async function getBackupDirHandle(){
+  try{
+    const handle=await idbGet('backupDir');
+    if(!handle)return null;
+    const perm=await handle.queryPermission({mode:'readwrite'});
+    if(perm==='granted')return handle;
+    const req=await handle.requestPermission({mode:'readwrite'});
+    if(req==='granted')return handle;
+    return null;
+  }catch(e){return null}
+}
+async function atualizarLabelPastaBackup(){
+  const el=$('#pastaBackupLbl');if(!el)return;
+  try{const handle=await idbGet('backupDir');el.textContent=handle?('Pasta atual: '+handle.name):'Nenhuma pasta escolhida (salva na pasta de Downloads)'}
+  catch(e){el.textContent='Nenhuma pasta escolhida (salva na pasta de Downloads)'}
+}
+async function exportAll(){
+  const json=JSON.stringify(store,null,2);
+  const filename='backup-painel-completo-'+todayISO()+'.json';
+  const dir=await getBackupDirHandle();
+  if(dir){
+    try{
+      const fh=await dir.getFileHandle(filename,{create:true});
+      const w=await fh.createWritable();
+      await w.write(json);await w.close();
+      toast('💾 Backup salvo na pasta escolhida ✓');
+      return;
+    }catch(e){console.error(e)}
+  }
+  const blob=new Blob([json],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='backup-painel-completo-'+todayISO()+'.json';a.click();
+  a.download=filename;a.click();
   toast('Backup completo exportado ✓');
 }
 
@@ -1226,6 +1275,7 @@ async function boot(){
   $('#loginwrap').classList.add('hidden');
   $('#appRoot').classList.remove('hidden');
   render();
+  atualizarLabelPastaBackup();
 }
 function toggleLoginPass(){const i=$('#loginPass');i.type=i.type==='password'?'text':'password'}
 async function forgotPassword(){
