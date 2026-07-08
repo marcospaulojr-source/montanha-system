@@ -232,6 +232,7 @@ button{font-family:inherit}
     <button data-v="pipe"><span class="ic">▦</span><span class="lbl">Timeline</span></button>
     <button data-v="cal"><span class="ic">▧</span><span class="lbl">Calendário</span></button>
     <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
+    <button data-v="prop"><span class="ic">🧾</span><span class="lbl">Propostas</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -279,6 +280,9 @@ button{font-family:inherit}
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
     </section>
+    <section class="view" id="prop">
+      <div class="panel"><h2>🧾 Propostas de orçamento <span class="tag" id="propN">0</span></h2><div class="plist" id="propList"></div></div>
+    </section>
   </div>
 </div>
 
@@ -314,7 +318,9 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function seedClient(name){
   return {id:uid(),brand:{name:name||'Novo Cliente',sub:'Montanha Studio',accent:'#EF7B24',logo:(name||'N')[0].toUpperCase(),logoImg:''},videos:[]};
 }
-let store={clients:[],current:null,gcalClientId:'',financeiro:[],saldosIniciais:[]};
+let store={clients:[],current:null,gcalClientId:'',financeiro:[],saldosIniciais:[],propostas:[]};
+const DEFAULT_SERVICOS=['Gravação','Iluminação','Sonorização','Edição','Envio'];
+const DEFAULT_EQUIPAMENTOS=['Câmera Sony FX 30 4K','Steadycam','Lentes','Iluminação','Microfones','Tripés','Ilha de edição'];
 
 function dbToVideo(row){
   return {id:row.id,cliente:row.cliente||'',titulo:row.titulo||'',objetivo:row.objetivo,estagio:row.estagio,inicio:row.inicio||'',entrega:row.entrega||'',roteiro:row.roteiro||'',mods:row.mods||'',enviado:!!row.enviado,dataEnvio:row.data_envio||'',gcalEventId:row.gcal_event_id||'',editor:row.editor||'',descricaoServico:row.descricao_servico||'',historico:row.historico||[]};
@@ -329,13 +335,20 @@ function finToDb(f){
   return {id:f.id,tipo:f.tipo,descricao:f.descricao||'',cliente:f.cliente||'',valor:f.valor||0,desconto:f.desconto||0,forma_pagamento:f.formaPagamento,banco:f.banco||'',vencimento:f.vencimento||null,status:f.status,data_pagamento:f.dataPagamento||null};
 }
 function finLiquido(f){return(f.valor||0)-(f.desconto||0)}
+function dbToProp(row){
+  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,servicos:row.servicos||[],equipamentos:row.equipamentos||[],investimento:Number(row.investimento)||0,observacoes:row.observacoes||''};
+}
+function propToDb(p){
+  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,servicos:p.servicos||[],equipamentos:p.equipamentos||[],investimento:p.investimento||0,observacoes:p.observacoes||''};
+}
 async function fetchAll(){
-  const [{data:clientsRows},{data:videoRows},{data:finRows},{data:siRows},{data:cfgRows}]=await Promise.all([
+  const [{data:clientsRows},{data:videoRows},{data:finRows},{data:siRows},{data:cfgRows},{data:propRows}]=await Promise.all([
     sb.from('clients').select('*').order('created_at'),
     sb.from('videos').select('*').order('created_at'),
     sb.from('financeiro').select('*').order('created_at'),
     sb.from('saldos_iniciais').select('*').order('created_at'),
-    sb.from('app_config').select('*').eq('id',1).limit(1)
+    sb.from('app_config').select('*').eq('id',1).limit(1),
+    sb.from('propostas').select('*').order('created_at')
   ]);
   const clients=(clientsRows||[]).map(c=>({id:c.id,brand:{name:c.name,sub:c.sub,accent:c.accent,logo:c.logo,logoImg:c.logo_img||''},videos:[]}));
   (videoRows||[]).forEach(row=>{const c=clients.find(x=>x.id===row.client_id);if(c)c.videos.push(dbToVideo(row))});
@@ -346,7 +359,8 @@ async function fetchAll(){
     current,
     gcalClientId:(cfgRows&&cfgRows[0]&&cfgRows[0].gcal_client_id)||'',
     financeiro:(finRows||[]).map(dbToFin),
-    saldosIniciais:(siRows||[]).map(row=>({id:row.id,banco:row.banco,valor:Number(row.valor)||0,data:row.data}))
+    saldosIniciais:(siRows||[]).map(row=>({id:row.id,banco:row.banco,valor:Number(row.valor)||0,data:row.data})),
+    propostas:(propRows||[]).map(dbToProp)
   };
 }
 function save(){}
@@ -479,7 +493,7 @@ function render(){
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}</span></div>${miniDots(v)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
-  renderCal();renderFin();save();
+  renderCal();renderFin();renderPropostas();save();
 }
 
 function renderCal(){
@@ -615,8 +629,8 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências']};
-const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais']};
+const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()']};
 function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
@@ -782,6 +796,113 @@ function clearFinanceiro(){
   if(ids.length)sb.from('financeiro').delete().in('id',ids).then(sbErr);
 }
 
+function addProposta(){
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,servicos:[...DEFAULT_SERVICOS],equipamentos:[...DEFAULT_EQUIPAMENTOS],investimento:0,observacoes:''};
+  (store.propostas=store.propostas||[]).push(p);
+  openProp(p.id);
+  sb.from('propostas').insert(propToDb(p)).then(sbErr);
+}
+function openProp(id){
+  const p=store.propostas.find(x=>x.id===id);
+  openModal(`<div class="mtop"><h3>Proposta de orçamento</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="fld"><label>Cliente</label><input id="p_cliente" value="${esc(p.cliente)}" placeholder="Ex: Dr. Paulo Monnerat"></div>
+      <div class="fld"><label>E-mail do cliente</label><input type="email" id="p_email" value="${esc(p.clienteEmail)}" placeholder="cliente@email.com"></div>
+      <div class="fld"><label>Título da proposta</label><input id="p_titulo" value="${esc(p.titulo)}" placeholder="Ex: Produção de 4 vídeos Reels"></div>
+      <div class="frow">
+        <div class="fld"><label>Data</label><input type="date" id="p_data" value="${p.data||''}"></div>
+        <div class="fld"><label>Validade (dias)</label><input type="number" min="1" id="p_validade" value="${p.validadeDias||30}"></div>
+      </div>
+      <div class="fld"><label>Serviços (um por linha)</label><textarea id="p_servicos" rows="6">${esc((p.servicos||[]).join('\n'))}</textarea></div>
+      <div class="fld"><label>Equipamentos (um por linha)</label><textarea id="p_equip" rows="6">${esc((p.equipamentos||[]).join('\n'))}</textarea></div>
+      <div class="fld"><label>Investimento (R$)</label><input type="number" step="0.01" min="0" id="p_valor" value="${p.investimento||''}"></div>
+      <div class="fld"><label>Observações (opcional)</label><textarea id="p_obs" placeholder="Ex: Condições de pagamento, prazos...">${esc(p.observacoes)}</textarea></div>
+      <button class="msave" onclick="saveProp('${id}')">Salvar proposta</button>
+      <div class="frow" style="margin-top:10px">
+        <button class="msave" style="background:#0F766E" onclick="gerarPropostaPDF('${id}')">📄 Gerar PDF</button>
+        <button class="msave" style="background:#2563EB" onclick="enviarPropostaEmail('${id}')">📧 Enviar por e-mail</button>
+      </div>
+      <button class="mdel" onclick="delProp('${id}')">Excluir</button>
+    </div>`);
+}
+function saveProp(id){
+  const p=store.propostas.find(x=>x.id===id);
+  p.cliente=$('#p_cliente').value.trim();
+  p.clienteEmail=$('#p_email').value.trim();
+  p.titulo=$('#p_titulo').value.trim();
+  p.data=$('#p_data').value||todayISO();
+  p.validadeDias=parseInt($('#p_validade').value)||30;
+  p.servicos=$('#p_servicos').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  p.equipamentos=$('#p_equip').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  p.investimento=parseFloat($('#p_valor').value)||0;
+  p.observacoes=$('#p_obs').value.trim();
+  closeM();renderPropostas();toast('Proposta salva ✓');
+  sb.from('propostas').update(propToDb(p)).eq('id',id).then(sbErr);
+}
+function delProp(id){
+  if(!confirm('Excluir esta proposta?'))return;
+  store.propostas=store.propostas.filter(x=>x.id!==id);
+  closeM();renderPropostas();toast('Proposta excluída');
+  sb.from('propostas').delete().eq('id',id).then(sbErr);
+}
+function renderPropostas(){
+  const P=store.propostas||[];
+  const list=$('#propList');if(!list)return;
+  $('#propN').textContent=P.length;
+  list.innerHTML=P.length?P.slice().sort((a,b)=>(b.data||'').localeCompare(a.data||'')).map(p=>`
+    <div class="prow" onclick="openProp('${p.id}')">
+      <div class="prow-top"><div class="thumb" style="background:linear-gradient(135deg,var(--accent),#D9601A)">🧾</div>
+        <div class="info">${p.cliente?`<div class="cliname">${esc(p.cliente)}</div>`:''}<div class="t">${esc(p.titulo||'(sem título)')}</div><div class="m">${p.data?fmtD(p.data):''}${p.validadeDias?' · Validade '+p.validadeDias+' dias':''}</div></div>
+        <span class="finval" style="color:var(--accent)">${fmtBRL(p.investimento)}</span></div>
+    </div>`).join(''):'<div class="empty">Nenhuma proposta criada ainda.</div>';
+}
+function gerarPropostaPDF(id){
+  const p=store.propostas.find(x=>x.id===id);
+  const servicosHtml=(p.servicos||[]).map(s=>`<div class="item">${esc(s.toUpperCase())}</div>`).join('');
+  const equipHtml=(p.equipamentos||[]).map(s=>`<div class="item">${esc(s.toUpperCase())}</div>`).join('');
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta - ${esc(p.cliente)}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#1E293B;padding:50px 60px;max-width:800px;margin:0 auto}
+    .hd{text-align:right;margin-bottom:40px}
+    .logo{font-size:22px;font-weight:900;color:#EF7B24;letter-spacing:1px}
+    .logo span{display:block;font-size:11px;letter-spacing:4px;color:#1E293B;font-weight:700}
+    .titulo{color:#EF7B24;font-weight:800;font-size:16px;margin-top:14px}
+    .cliente{color:#EF7B24;font-weight:700;font-size:13px}
+    h2{color:#EF7B24;font-size:16px;letter-spacing:1px}
+    .item{color:#EF7B24;font-weight:800;font-size:15px;margin:4px 0}
+    .inv-lab{color:#EF7B24;font-style:italic;font-weight:800;font-size:16px;text-align:right;margin-top:50px}
+    .inv-val{color:#EF7B24;font-style:italic;font-weight:900;font-size:34px;text-align:right}
+    .meta{text-align:right;color:#1E293B;font-weight:700;font-size:12px;margin-top:20px}
+    .obs{margin-top:30px;font-size:12.5px;color:#475569}
+    .foot{margin-top:60px;text-align:right;font-size:11px;color:#475569;border-top:1px solid #E2E8F0;padding-top:14px}
+    @media print{body{padding:20px 40px}}
+  </style></head><body>
+  <div class="hd"><div class="logo">MONTANHA<span>F I L M E S</span></div>
+    <div class="titulo">PROPOSTA ${esc((p.titulo||'').toUpperCase())}</div>
+    <div class="cliente">${esc(p.cliente)}</div>
+  </div>
+  <h2>.: SERVIÇOS :.</h2>
+  ${servicosHtml||'<div class="item">—</div>'}
+  <h2 style="margin-top:26px">.: EQUIPAMENTOS :.</h2>
+  ${equipHtml||'<div class="item">—</div>'}
+  ${p.observacoes?`<div class="obs"><strong>Observações:</strong><br>${esc(p.observacoes).replace(/\n/g,'<br>')}</div>`:''}
+  <div class="inv-lab">INVESTIMENTO:</div>
+  <div class="inv-val">${fmtBRL(p.investimento)}</div>
+  <div class="meta">${fmtD(p.data)}<br>validade ${p.validadeDias} dias</div>
+  <div class="foot">Montanha Filmes · www.montanhafilmes.com</div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>win.print(),400);
+}
+function enviarPropostaEmail(id){
+  const p=store.propostas.find(x=>x.id===id);
+  if(!p.clienteEmail){toast('⚠️ Informe o e-mail do cliente antes de enviar');return;}
+  const assunto=`Proposta - ${p.titulo||'Orçamento'} - Montanha Filmes`;
+  const corpo=`Olá, ${p.cliente}!\n\nSegue nossa proposta:\n\nSERVIÇOS:\n${(p.servicos||[]).join('\n')}\n\nEQUIPAMENTOS:\n${(p.equipamentos||[]).join('\n')}\n\nINVESTIMENTO: ${fmtBRL(p.investimento)}\nValidade: ${p.validadeDias} dias\n\nObs: gere e anexe o PDF da proposta antes de enviar.\n\nAtt,\nMontanha Filmes`;
+  window.location.href=`mailto:${encodeURIComponent(p.clienteEmail)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+}
 function siRowHtml(si){
   return `<div class="frow"><div class="fld"><label>Banco/Conta</label><select class="si_banco">${bancoOptions(si?si.banco:'')}</select></div>
     <div class="fld"><label>Saldo disponível hoje (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
