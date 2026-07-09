@@ -447,7 +447,7 @@ function uploadBrandLogo(e){
   e.target.value='';
 }
 function renderClientSelect(){
-  const opts=store.clients.map(c=>`<option value="${c.id}" ${c.id===store.current?'selected':''}>${esc(c.brand.name)}</option>`).join('');
+  const opts=store.clients.slice().sort((a,b)=>a.brand.name.localeCompare(b.brand.name,'pt-BR')).map(c=>`<option value="${c.id}" ${c.id===store.current?'selected':''}>${esc(c.brand.name)}</option>`).join('');
   $('#cliSelect').innerHTML=opts;
   const m=$('#cliSelectMobile');if(m)m.innerHTML=opts;
 }
@@ -521,7 +521,7 @@ function render(){
   $('#prodTag').textContent=Vf.length+' peças';
   $('#dashList').innerHTML=Vf.length?Vf.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
-      <div class="prow-top"><div class="thumb">${thumbInner('▶')}</div>
+      <div class="prow-top"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,'+clienteColor(v.id)+','+clienteColor(v.id)+'CC)'}">${thumbInner('▶')}</div>
         <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
         <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v)}</div>`).join('')
@@ -535,7 +535,7 @@ function render(){
   $('#descServN').textContent=comDesc.length;
   $('#dashDescServ').innerHTML=comDesc.length?comDesc.map(v=>`
     <div class="prow" onclick="openV('${v.id}')"><div class="prow-top">
-      <div class="thumb">${thumbInner('📋')}</div>
+      <div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,'+clienteColor(v.id)+','+clienteColor(v.id)+'CC)'}">${thumbInner('📋')}</div>
       <div style="flex:0 0 auto;max-width:180px;min-width:0">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div></div>
       <div style="flex:1;min-width:0;padding-left:16px;margin-left:4px;border-left:2px solid #E2E8F0"><div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Descrição</div><div class="m" style="color:var(--text);font-weight:600;font-size:14px;white-space:normal;overflow-wrap:anywhere;word-break:break-word">${esc(v.descricaoServico)}</div></div>
     </div></div>`).join('')
