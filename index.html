@@ -259,6 +259,7 @@ button{font-family:inherit}
     <button data-v="prop"><span class="ic">🧾</span><span class="lbl">Propostas</span></button>
     <button data-v="cli"><span class="ic">👥</span><span class="lbl">Clientes</span></button>
     <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
+    <button data-v="arq"><span class="ic">📦</span><span class="lbl">Arquivadas</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -314,6 +315,9 @@ button{font-family:inherit}
     </section>
     <section class="view" id="prop">
       <div class="panel"><h2>🧾 Propostas de orçamento <span class="tag" id="propN">0</span></h2><div class="plist" id="propList"></div></div>
+    </section>
+    <section class="view" id="arq">
+      <div class="panel"><h2>📦 Tarefas finalizadas <span class="tag" id="arqN">0</span></h2><div class="plist" id="arqList"></div></div>
     </section>
   </div>
 </div>
@@ -508,7 +512,8 @@ function render(){
   const c=cur();applyBrand();renderClientSelect();renderResumoGeral();
   const V=c.videos;
   renderEditorFilters(V);
-  const Vf=editorFilter==='all'?V:V.filter(v=>v.editor===editorFilter);
+  const ativos=V.filter(v=>v.estagio!=='finalizado');
+  const Vf=editorFilter==='all'?ativos:ativos.filter(v=>v.editor===editorFilter);
   const prod=V.filter(v=>['agendado','roteiro','captacao','edicao','modificacoes','aprovacao'].includes(v.estagio));
   const mods=V.filter(v=>v.estagio==='modificacoes');
   // próxima entrega (data futura mais próxima entre os não concluídos)
@@ -531,7 +536,7 @@ function render(){
     <div class="prow" onclick="openV('${v.id}')"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,#E11D48,#BE123C)'}">${thumbInner('✎')}</div>
       <div>${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div>${v.descricaoServico?`<div class="m" style="color:var(--text)">${esc(v.descricaoServico)}</div>`:''}<div class="m">${v.mods?esc(v.mods):'Sem detalhes registrados'}</div></div><span class="st" style="color:#E11D48">Ver →</span></div>`).join('')
     :'<div class="empty">Nenhuma modificação pendente.</div>';
-  const comDesc=V.filter(v=>v.descricaoServico&&v.descricaoServico.trim());
+  const comDesc=ativos.filter(v=>v.descricaoServico&&v.descricaoServico.trim());
   $('#descServN').textContent=comDesc.length;
   $('#dashDescServ').innerHTML=comDesc.length?comDesc.map(v=>`
     <div class="prow" onclick="openV('${v.id}')"><div class="prow-top">
@@ -540,7 +545,7 @@ function render(){
       <div style="flex:1;min-width:0;padding-left:16px;margin-left:4px;border-left:2px solid #E2E8F0"><div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Descrição</div><div class="m" style="color:var(--text);font-weight:600;font-size:14px;white-space:normal;overflow-wrap:anywhere;word-break:break-word">${esc(v.descricaoServico)}</div></div>
     </div></div>`).join('')
     :'<div class="empty">Nenhuma tarefa com descrição do serviço preenchida.</div>';
-  $('#board').innerHTML=STAGES.map(([k,lab])=>{
+  $('#board').innerHTML=STAGES.filter(([k])=>k!=='finalizado').map(([k,lab])=>{
     const vs=Vf.filter(v=>v.estagio===k);
     return `<div class="col" data-stage="${k}"><h3><span class="stagedot" style="background:${STAGE_COLOR[k]}"></span>${lab}<span class="ct">${vs.length}</span></h3>
       ${vs.map(v=>`<div class="vcard stage-${k}" draggable="true" data-id="${v.id}" onclick="openV('${v.id}')">
@@ -549,7 +554,19 @@ function render(){
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}</span></div>${miniDots(v)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
-  renderCal();renderFin();renderPropostas();renderClientesCRM();save();
+  renderCal();renderFin();renderPropostas();renderClientesCRM();renderArquivadas();save();
+}
+function renderArquivadas(){
+  const list=$('#arqList');if(!list)return;
+  const c=cur();
+  const arq=(c.videos||[]).filter(v=>v.estagio==='finalizado');
+  $('#arqN').textContent=arq.length;
+  list.innerHTML=arq.length?arq.slice().sort((a,b)=>(b.entrega||'').localeCompare(a.entrega||'')).map(v=>`
+    <div class="prow" onclick="openV('${v.id}')">
+      <div class="prow-top"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,'+clienteColor(v.id)+','+clienteColor(v.id)+'CC)'}">${thumbInner('✓')}</div>
+        <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.editor?' · 👤 '+esc(v.editor):''}</div></div>
+        <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span></div>
+    </div>`).join(''):'<div class="empty">Nenhuma tarefa finalizada ainda.</div>';
 }
 
 function renderCal(){
@@ -685,8 +702,8 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais']};
-const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais'],arq:['Arquivadas','Tarefas finalizadas']};
+const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()'],arq:['＋ Nova tarefa','addVideo()']};
 function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
