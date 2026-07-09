@@ -258,8 +258,8 @@ button{font-family:inherit}
     <button data-v="cal"><span class="ic">▧</span><span class="lbl">Calendário</span></button>
     <button data-v="prop"><span class="ic">🧾</span><span class="lbl">Propostas</span></button>
     <button data-v="cli"><span class="ic">👥</span><span class="lbl">Clientes</span></button>
-    <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
     <button data-v="arq"><span class="ic">📦</span><span class="lbl">Arquivadas</span></button>
+    <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -556,9 +556,9 @@ function render(){
   bindDrag();
   renderCal();renderFin();renderPropostas();renderClientesCRM();renderArquivadas();save();
 }
-let arqCollapsed=new Set();
+let arqExpanded=new Set();
 function toggleArqFolder(id){
-  if(arqCollapsed.has(id))arqCollapsed.delete(id);else arqCollapsed.add(id);
+  if(arqExpanded.has(id))arqExpanded.delete(id);else arqExpanded.add(id);
   renderArquivadas();
 }
 function openArqVideo(clientId,videoId){
@@ -576,7 +576,7 @@ function renderArquivadas(){
   list.innerHTML=groups.map(({cl,arq})=>{
     const color=clienteColor(cl.brand.name);
     const items=arq.slice().sort((a,b)=>(b.entrega||'').localeCompare(a.entrega||''));
-    const collapsed=arqCollapsed.has(cl.id);
+    const collapsed=!arqExpanded.has(cl.id);
     return `<div style="margin-bottom:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden">
       <div onclick="toggleArqFolder('${cl.id}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 16px;background:${color}1A;border-left:5px solid ${color}">
         <span style="font-size:16px">📦</span>
