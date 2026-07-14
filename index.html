@@ -179,6 +179,11 @@ button{font-family:inherit}
 .overlay{position:fixed;inset:0;background:rgba(11,37,69,.55);backdrop-filter:blur(3px);display:none;place-items:center;z-index:50;padding:20px}
 .overlay.on{display:grid}
 .modal{background:var(--card);color:var(--text);border-radius:18px;max-width:540px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden;animation:pop .25s ease;max-height:92vh;overflow-y:auto}
+.modal.wide{max-width:900px}
+.extrato-row{display:grid;grid-template-columns:auto 128px 1fr 120px 110px;align-items:center;gap:8px;margin-bottom:8px}
+.extrato-row input,.extrato-row select{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--text)}
+.extrato-head{display:grid;grid-template-columns:auto 128px 1fr 120px 110px;gap:8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;padding:0 2px}
+@media (max-width:760px){.extrato-row,.extrato-head{grid-template-columns:auto 1fr}.extrato-head{display:none}}
 @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 .mtop{padding:20px 24px 0;display:flex;align-items:center}
 .mtop h3{font-size:18px;font-weight:800}
@@ -316,7 +321,7 @@ button{font-family:inherit}
       </div>
     </section>
     <section class="view" id="fin">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span id="finEyeBtn"></span></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
       <div class="stats" id="finStats"></div>
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
@@ -858,7 +863,8 @@ function historyHtml(v){
   return `<div class="hist">${h.map(e=>`<div class="hist-row"><span class="hist-d">${fmtD(e.data)}${e.hora?' '+e.hora:''}</span><span class="hist-e">${SLAB[e.estagio]}</span></div>`).join('')}</div>`;
 }
 function openModal(html){$('#modal').innerHTML=html;$('#overlay').classList.add('on')}
-function closeM(){$('#overlay').classList.remove('on')}
+function openModalWide(html){$('#modal').classList.add('wide');openModal(html)}
+function closeM(){$('#overlay').classList.remove('on');$('#modal').classList.remove('wide')}
 function confirmDialog(msg){
   return new Promise(resolve=>{
     const prevHTML=$('#modal').innerHTML;
@@ -1031,6 +1037,75 @@ async function clearFinanceiro(){
   store.financeiro=[];
   render();toast('Lançamentos limpos ✓');
   if(ids.length)sb.from('financeiro').delete().in('id',ids).then(sbErr);
+}
+
+// ---- importar extrato via IA (Supabase Edge Function + Anthropic) ----
+let extratoLancamentos=[];
+function openImportExtrato(){
+  extratoLancamentos=[];
+  openModalWide(`<div class="mtop"><h3>📷 Importar extrato (IA)</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="hist-empty">Envie um print ou foto do extrato bancário (ou cole com Ctrl+V). A IA vai identificar os lançamentos — você confere, edita e escolhe o que importar antes de gravar.</div>
+      <div class="fld"><input type="file" accept="image/*" id="extratoFile" onchange="processarExtrato(this.files[0])"></div>
+      <div id="extratoStatus"></div>
+    </div>`);
+  document.addEventListener('paste',extratoPasteHandler);
+}
+function extratoPasteHandler(e){
+  if(!$('#extratoFile'))return;
+  const item=[...(e.clipboardData&&e.clipboardData.items||[])].find(i=>i.type&&i.type.startsWith('image/'));
+  if(item)processarExtrato(item.getAsFile());
+}
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result.split(',')[1]);
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+const EXTRATO_WORKER_URL='https://montanha-analisar-extrato.marcospaulojr.workers.dev';
+async function processarExtrato(file){
+  if(!file)return;
+  $('#extratoStatus').innerHTML='<div class="empty">🔎 Analisando imagem com IA...</div>';
+  try{
+    const image=await fileToBase64(file);
+    const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:file.type||'image/png'})});
+    const data=await res.json();
+    if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
+    extratoLancamentos=(data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',incluir:true}));
+    renderRevisaoExtrato();
+  }catch(e){
+    $('#extratoStatus').innerHTML=`<div class="empty">Erro ao analisar a imagem: ${esc(e.message||String(e))}</div>`;
+  }
+}
+function renderRevisaoExtrato(){
+  if(!extratoLancamentos.length){$('#extratoStatus').innerHTML='<div class="empty">Nenhum lançamento identificado nessa imagem. Tente um print mais nítido.</div>';return}
+  $('#extratoStatus').innerHTML=`
+    <div class="hist-empty">${extratoLancamentos.length} lançamento(s) identificado(s). Confira, edite e desmarque o que não quiser importar.</div>
+    <div class="extrato-head"><span></span><span>Data</span><span>Descrição</span><span>Valor (R$)</span><span>Tipo</span></div>
+    <div id="extratoList">${extratoLancamentos.map((l,i)=>extratoRow(l,i)).join('')}</div>
+    <button class="msave" onclick="confirmarImportExtrato()">Importar selecionados</button>`;
+}
+function extratoRow(l,i){
+  return `<div class="extrato-row">
+    <input type="checkbox" ${l.incluir?'checked':''} onchange="extratoLancamentos[${i}].incluir=this.checked">
+    <input type="date" value="${l.data}" onchange="extratoLancamentos[${i}].data=this.value">
+    <input type="text" value="${esc(l.descricao)}" onchange="extratoLancamentos[${i}].descricao=this.value">
+    <input type="number" step="0.01" value="${l.valor}" onchange="extratoLancamentos[${i}].valor=parseFloat(this.value)||0">
+    <select onchange="extratoLancamentos[${i}].tipo=this.value">
+      <option value="entrada" ${l.tipo==='entrada'?'selected':''}>Entrada</option>
+      <option value="saida" ${l.tipo==='saida'?'selected':''}>Saída</option>
+    </select>
+  </div>`;
+}
+function confirmarImportExtrato(){
+  const selecionados=extratoLancamentos.filter(l=>l.incluir);
+  if(!selecionados.length){toast('Nenhum lançamento selecionado');return}
+  const novos=selecionados.map(l=>({id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:'',valor:l.valor,desconto:0,formaPagamento:'pix',banco:'',vencimento:l.data,status:'pago',dataPagamento:l.data}));
+  store.financeiro=(store.financeiro||[]).concat(novos);
+  sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
+  closeM();render();toast(`✓ ${novos.length} lançamento(s) importado(s) do extrato`);
 }
 
 function clientCrmToDb(c){
