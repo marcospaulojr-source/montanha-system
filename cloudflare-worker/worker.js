@@ -24,6 +24,12 @@ Regras:
   e "saida" para dinheiro que saiu (débito, pagamento, PIX enviado, saque, tarifa).
 - "valor" é sempre positivo (o tipo já indica a direção).
 - "data" no formato YYYY-MM-DD. Se o ano não aparecer no extrato, use o ano atual (${new Date().getFullYear()}).
+- LAYOUT COMUM DE APP DE BANCO (ex: Nubank): os lançamentos costumam vir agrupados por dia, com a DATA
+  aparecendo como um cabeçalho separado acima do grupo (à esquerda, sozinha, tipo "13 JUL" ou "Hoje"),
+  e cada lançamento embaixo dela mostra o nome do estabelecimento/pessoa com um HORÁRIO logo abaixo
+  (tipo "14:32"). Não confunda esse horário com a data — a data de cada lançamento é a do cabeçalho do
+  grupo mais próximo acima dele, não o horário. Se dois cabeçalhos de data diferentes aparecerem na
+  imagem, cada lançamento pertence ao cabeçalho de data que está IMEDIATAMENTE acima dele na imagem.
 - Ignore saldo, cabeçalhos, totais e linhas que não sejam lançamentos individuais.
 - Se não conseguir ler algum campo com confiança, ainda assim inclua a linha com sua melhor
   estimativa — a pessoa vai revisar tudo antes de confirmar.
