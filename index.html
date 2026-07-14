@@ -90,9 +90,6 @@ button{font-family:inherit}
 .panel h2{font-size:14px;font-weight:700;padding:15px 19px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
 .panel h2 .tag{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted)}
 .plist{padding:4px 0}
-.fin-group-title{display:flex;align-items:center;gap:8px;padding:11px 19px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;background:var(--hover);border-bottom:1px solid var(--line);border-top:1px solid var(--line)}
-.fin-group-title:first-child{border-top:none}
-.fin-group-title .tag{font-size:11px;font-weight:600;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:1px 8px;color:var(--muted)}
 .prow{display:flex;flex-direction:column;align-items:stretch;gap:12px;padding:14px 19px;border-bottom:1px solid #F1F5F9;cursor:pointer;transition:.12s}
 .prow:last-child{border-bottom:none}.prow:hover{background:var(--hover)}
 .prow-top{display:flex;align-items:center;gap:12px}
@@ -834,16 +831,18 @@ function renderFin(){
   const filtPendentes=filtered.filter(f=>finStatus(f)!=='pago');
   const filtEntradas=filtered.filter(f=>f.tipo==='entrada'&&finStatus(f)==='pago');
   const filtSaidas=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)==='pago');
-  $('#finList').innerHTML=tabsHtml+`
-    <div class="fin-group-title">↑ Entradas <span class="tag">${filtEntradas.length}</span></div>
-    ${filtEntradas.length?filtEntradas.map(finRow).join(''):'<div class="empty">Nenhuma entrada neste período.</div>'}
-    <div class="fin-group-title">↓ Saídas <span class="tag">${filtSaidas.length}</span></div>
-    ${filtSaidas.length?filtSaidas.map(finRow).join(''):'<div class="empty">Nenhuma saída neste período.</div>'}
-    <div class="fin-group-title">⏳ Pendentes <span class="tag">${filtPendentes.length}</span></div>
-    ${filtPendentes.length?filtPendentes.map(finRow).join(''):'<div class="empty">Nenhum pendente neste período.</div>'}`;
+  const grupos={entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},pendente:{lab:'⏳ Pendentes',itens:filtPendentes,vazio:'Nenhum pendente neste período.'}};
+  if(!grupos[finGroupFilter])finGroupFilter='entrada';
+  const groupTabsHtml=`<div class="fintabs">
+    ${Object.entries(grupos).map(([k,g])=>`<button class="fintab ${finGroupFilter===k?'on':''}" onclick="setFinGroupFilter('${k}')">${g.lab} (${g.itens.length})</button>`).join('')}
+  </div>`;
+  const ativo=grupos[finGroupFilter];
+  $('#finList').innerHTML=tabsHtml+groupTabsHtml+(ativo.itens.length?ativo.itens.map(finRow).join(''):`<div class="empty">${ativo.vazio}</div>`);
 }
 let finFilter='all';
 function setFinFilter(k){finFilter=k;renderFin()}
+let finGroupFilter='entrada';
+function setFinGroupFilter(k){finGroupFilter=k;renderFin()}
 let valoresVisiveis=false;
 function toggleValoresVisiveis(){valoresVisiveis=!valoresVisiveis;renderFin()}
 
