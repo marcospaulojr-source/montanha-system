@@ -1422,15 +1422,21 @@ function siRowHtml(si){
 }
 function addSiRow(){$('#siRows').insertAdjacentHTML('beforeend',siRowHtml(null))}
 function openReservaMov(){
+  const outrasContas=BANCOS.filter(b=>!RESERVE_BANCOS.includes(b));
   openModal(`<div class="mtop"><h3>Movimentar reserva</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="fld"><label>Conta</label><select id="rm_banco">${RESERVE_BANCOS.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')}</select></div>
-      <div class="fld"><label>Tipo</label><select id="rm_tipo"><option value="entrada">Entrada (guardar na reserva)</option><option value="saida">Saída (resgatar da reserva)</option></select></div>
+      <div class="fld"><label>Conta da reserva</label><select id="rm_banco">${RESERVE_BANCOS.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Tipo</label><select id="rm_tipo" onchange="toggleRmDestino(this.value)"><option value="entrada">Entrada (guardar na reserva)</option><option value="saida" selected>Saída (resgatar da reserva)</option></select></div>
       <div class="fld"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="rm_valor" placeholder="0,00"></div>
       <div class="fld"><label>Descrição (opcional)</label><input id="rm_desc" placeholder="Ex: Depósito mensal"></div>
       <div class="fld"><label>Data</label><input type="date" id="rm_data" value="${todayISO()}"></div>
+      <div class="fld"><label id="rm_destino_lbl">Creditar automaticamente em</label><select id="rm_destino"><option value="">Não lançar em outra conta</option>${outrasContas.map(b=>`<option value="${esc(b)}" ${b==='Nubank PF'?'selected':''}>${esc(b)}</option>`).join('')}</select></div>
       <button class="msave" onclick="saveReservaMov()">Salvar</button>
     </div>`);
+}
+function toggleRmDestino(tipo){
+  const lbl=$('#rm_destino_lbl');
+  if(lbl)lbl.textContent=tipo==='saida'?'Creditar automaticamente em':'Debitar automaticamente de';
 }
 function saveReservaMov(){
   const banco=$('#rm_banco').value;
@@ -1439,10 +1445,16 @@ function saveReservaMov(){
   if(valor<=0){alert('Informe um valor válido.');return}
   const data=$('#rm_data').value||todayISO();
   const desc=$('#rm_desc').value.trim()||(tipo==='entrada'?'Depósito na reserva':'Retirada da reserva');
-  const f={id:uid(),tipo,descricao:desc,cliente:'',valor,formaPagamento:'transferencia',banco,vencimento:data,status:'pago',dataPagamento:data};
-  (store.financeiro=store.financeiro||[]).push(f);
-  closeM();render();toast('Reserva atualizada ✓');
-  sb.from('financeiro').insert(finToDb(f)).then(sbErr);
+  const destino=$('#rm_destino').value;
+  const novos=[{id:uid(),tipo,descricao:desc,cliente:'',valor,formaPagamento:'transferencia',banco,vencimento:data,status:'pago',dataPagamento:data}];
+  if(destino){
+    const tipoDestino=tipo==='saida'?'entrada':'saida';
+    const descDestino=tipo==='saida'?`Resgate da ${banco}`:`Depósito para ${banco}`;
+    novos.push({id:uid(),tipo:tipoDestino,descricao:descDestino,cliente:'',valor,formaPagamento:'transferencia',banco:destino,vencimento:data,status:'pago',dataPagamento:data});
+  }
+  store.financeiro=(store.financeiro||[]).concat(novos);
+  closeM();render();toast(destino?'Reserva e conta destino atualizadas ✓':'Reserva atualizada ✓');
+  sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
 }
 function openSaldoInicial(){
   const items=store.saldosIniciais&&store.saldosIniciais.length?store.saldosIniciais:[null,null];
