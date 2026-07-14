@@ -1087,13 +1087,26 @@ async function processarExtrato(file){
     const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:file.type||'image/png'})});
     const data=await res.json();
     if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
-    extratoLancamentos=(data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',incluir:true}));
+    extratoLancamentos=expandReservaPairs((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',incluir:true})));
     renderRevisaoExtrato();
   }catch(e){
     $('#extratoStatus').innerHTML=`<div class="empty">Erro ao analisar a imagem: ${esc(e.message||String(e))}</div>`;
   }
 }
 let extratoBanco='';
+function expandReservaPairs(lista){
+  const contaPadrao=BANCOS.find(b=>!RESERVE_BANCOS.includes(b))||'';
+  const expandido=[];
+  lista.forEach(l=>{
+    expandido.push(l);
+    if(l.banco&&RESERVE_BANCOS.includes(l.banco)&&contaPadrao){
+      const tipoPar=l.tipo==='saida'?'entrada':'saida';
+      const descPar=l.tipo==='saida'?`Resgate da ${l.banco}`:`Depósito para ${l.banco}`;
+      expandido.push({data:l.data,descricao:descPar,valor:l.valor,tipo:tipoPar,banco:contaPadrao,incluir:true});
+    }
+  });
+  return expandido;
+}
 function renderRevisaoExtrato(){
   if(!extratoLancamentos.length){$('#extratoStatus').innerHTML='<div class="empty">Nenhum lançamento identificado nessa imagem. Tente um print mais nítido.</div>';return}
   $('#extratoStatus').innerHTML=`
@@ -1183,7 +1196,7 @@ async function processarVoz(texto){
     const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:texto,hoje:todayISO(),contas:BANCOS})});
     const data=await res.json();
     if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
-    extratoLancamentos=(data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:BANCOS.includes(l.banco)?l.banco:'',incluir:true}));
+    extratoLancamentos=expandReservaPairs((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:BANCOS.includes(l.banco)?l.banco:'',incluir:true})));
     renderRevisaoExtrato();
   }catch(e){
     $('#extratoStatus').innerHTML=`<div class="empty">Erro ao interpretar: ${esc(e.message||String(e))}</div>`;
