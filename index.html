@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
 :root{
   --navy:#0B2545; --navy-2:#13315C; --steel:#134074; --accent:#EF7B24; --accent-2:#F59E0B;
@@ -80,6 +81,11 @@ button{font-family:inherit}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
 .stack{display:flex;flex-direction:column;gap:20px}
+.chartgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;padding:19px}
+.chartbox{min-width:0}
+.chartbox h4{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px}
+.chartbox .cv-wrap{position:relative;height:220px}
+@media (max-width:1100px){.chartgrid{grid-template-columns:1fr}}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);overflow:hidden}
 .panel h2{font-size:14px;font-weight:700;padding:15px 19px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
 .panel h2 .tag{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted)}
@@ -289,6 +295,13 @@ button{font-family:inherit}
           <div class="panel"><h2>✎ Modificações solicitadas <span class="tag" id="modsN">0</span></h2><div class="plist" id="dashMods"></div></div>
         </div>
       </div>
+      <div class="panel" style="margin-top:20px"><h2>📈 Indicadores de produção</h2>
+        <div class="chartgrid">
+          <div class="chartbox"><h4>Tempo médio por etapa</h4><div class="cv-wrap"><canvas id="chartStageTime"></canvas></div></div>
+          <div class="chartbox"><h4>Avanços vs. perdas por mês</h4><div class="cv-wrap"><canvas id="chartAvancoPerda"></canvas></div></div>
+          <div class="chartbox"><h4>Distribuição atual por etapa</h4><div class="cv-wrap"><canvas id="chartStageDist"></canvas></div></div>
+        </div>
+      </div>
       <div class="panel" style="margin-top:20px"><h2>🌐 Resumo geral — todos os clientes <span class="tag" id="resumoClientesN"></span></h2><div id="resumoGeral" style="padding:6px 19px 14px"></div></div>
     </section>
     <section class="view" id="pipe">
@@ -308,6 +321,13 @@ button{font-family:inherit}
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
+      <div class="panel" style="margin-bottom:20px"><h2>📈 Evolução financeira</h2>
+        <div class="chartgrid">
+          <div class="chartbox"><h4>Entradas vs. saídas por mês</h4><div class="cv-wrap"><canvas id="chartFinMes"></canvas></div></div>
+          <div class="chartbox"><h4>Saldo acumulado</h4><div class="cv-wrap"><canvas id="chartFinSaldo"></canvas></div></div>
+          <div class="chartbox"><h4>Receita por cliente</h4><div class="cv-wrap"><canvas id="chartFinCliente"></canvas></div></div>
+        </div>
+      </div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
     </section>
     <section class="view" id="cli">
@@ -367,7 +387,7 @@ function applyTheme(t){
   const btn=$('#themeBtn');
   if(btn)btn.innerHTML=t==='dark'?'☀️ <span class="lbl">Modo claro</span>':'🌙 <span class="lbl">Modo escuro</span>';
 }
-function toggleTheme(){applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')}
+function toggleTheme(){applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');if(typeof store!=='undefined'&&store.clients&&store.clients.length){render()}}
 (function initTheme(){
   const saved=lsGet('theme');
   const preferred=saved||(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
@@ -508,6 +528,71 @@ function renderResumoGeral(){
     </div>`).join('')}
   `:'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
 }
+// ---- gráficos (Chart.js) ----
+const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function lastNMonths(n){
+  const arr=[];const base=new Date();base.setDate(1);
+  for(let i=n-1;i>=0;i--){
+    const dt=new Date(base.getFullYear(),base.getMonth()-i,1);
+    arr.push({k:dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'),label:MESES_ABR[dt.getMonth()]+'/'+String(dt.getFullYear()).slice(2)});
+  }
+  return arr;
+}
+function chartTheme(){
+  const cs=getComputedStyle(document.documentElement);
+  const v=k=>cs.getPropertyValue(k).trim();
+  return{text:v('--muted'),grid:v('--line'),accent:v('--accent'),green:v('--green'),red:'#E11D48',blue:v('--blue'),violet:v('--violet'),amber:v('--amber')};
+}
+const CHARTS={};
+function drawChart(id,config){
+  const canvas=$('#'+id);
+  if(!canvas||typeof Chart==='undefined')return;
+  if(CHARTS[id])CHARTS[id].destroy();
+  CHARTS[id]=new Chart(canvas.getContext('2d'),config);
+}
+function resizeCharts(){Object.values(CHARTS).forEach(c=>{if(c)c.resize()})}
+function histDateTime(h){return new Date(h.data+'T'+(h.hora||'00:00'))}
+function stageDurations(V){
+  const acc={};
+  V.forEach(v=>{
+    const h=(v.historico||[]).slice().sort((a,b)=>histDateTime(a)-histDateTime(b));
+    for(let i=0;i<h.length-1;i++){
+      const dias=(histDateTime(h[i+1])-histDateTime(h[i]))/86400000;
+      if(dias<=0)continue;
+      (acc[h[i].estagio]=acc[h[i].estagio]||[]).push(dias);
+    }
+  });
+  return acc;
+}
+function avgStageDays(V){
+  const acc=stageDurations(V);
+  return STAGES.filter(([k])=>k!=='finalizado').map(([k,lab])=>{
+    const arr=acc[k]||[];
+    return{k,lab:shortLab(k),avg:arr.length?Math.round(arr.reduce((s,x)=>s+x,0)/arr.length*10)/10:0};
+  });
+}
+function prodMonthlySeries(V){
+  const months=lastNMonths(6);
+  const pubMap={},modMap={};
+  V.forEach(v=>(v.historico||[]).forEach(h=>{
+    const k=h.data.slice(0,7);
+    if(h.estagio==='publicado')pubMap[k]=(pubMap[k]||0)+1;
+    if(h.estagio==='modificacoes')modMap[k]=(modMap[k]||0)+1;
+  }));
+  return months.map(m=>({...m,avanco:pubMap[m.k]||0,perda:modMap[m.k]||0}));
+}
+function stageSnapshot(V){
+  return STAGES.filter(([k])=>k!=='finalizado').map(([k,lab])=>({k,lab:shortLab(k),n:V.filter(v=>v.estagio===k).length}));
+}
+function renderProdCharts(V){
+  const th=chartTheme();
+  const stages=avgStageDays(V);
+  drawChart('chartStageTime',{type:'bar',data:{labels:stages.map(s=>s.lab),datasets:[{data:stages.map(s=>s.avg),backgroundColor:stages.map(s=>STAGE_COLOR[s.k])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' dia(s) em média'}}},scales:{x:{beginAtZero:true,ticks:{color:th.text},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
+  const serie=prodMonthlySeries(V);
+  drawChart('chartAvancoPerda',{type:'bar',data:{labels:serie.map(s=>s.label),datasets:[{label:'Avanços (publicados)',data:serie.map(s=>s.avanco),backgroundColor:th.green},{label:'Perdas (modificações)',data:serie.map(s=>s.perda),backgroundColor:th.red}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,precision:0},grid:{color:th.grid}}}}});
+  const snap=stageSnapshot(V).filter(s=>s.n>0);
+  drawChart('chartStageDist',{type:'doughnut',data:{labels:snap.map(s=>s.lab),datasets:[{data:snap.map(s=>s.n),backgroundColor:snap.map(s=>STAGE_COLOR[s.k])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}}}});
+}
 function render(){
   const c=cur();applyBrand();renderClientSelect();renderResumoGeral();
   const V=c.videos;
@@ -554,6 +639,7 @@ function render(){
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}</span></div>${miniDots(v)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
+  renderProdCharts(V);
   renderCal();renderFin();renderPropostas();renderClientesCRM();renderArquivadas();save();
 }
 let arqExpanded=new Set();
@@ -617,6 +703,34 @@ function periodTotais(F,start,end,cutoff){
   const sai=F.filter(f=>f.tipo==='saida'&&inP(f)).reduce((s,f)=>s+finLiquido(f),0);
   return{ent,sai};
 }
+function finMonthlySeries(F,cutoff,saldoInicial){
+  const allKeys=[...new Set(F.filter(f=>f.status==='pago'&&f.dataPagamento&&(!cutoff||f.dataPagamento>=cutoff)).map(f=>f.dataPagamento.slice(0,7)))].sort();
+  let acumulado=saldoInicial;
+  const full=allKeys.map(k=>{
+    const[yy,mm]=k.split('-').map(Number);
+    const ms=k+'-01',me=new Date(yy,mm,0).toISOString().slice(0,10);
+    const t=periodTotais(F,ms,me,cutoff);
+    acumulado+=t.ent-t.sai;
+    return{k,label:MESES_ABR[mm-1]+'/'+String(yy).slice(2),ent:t.ent,sai:t.sai,saldo:acumulado};
+  });
+  return full.slice(-12);
+}
+function finPorCliente(F){
+  const map={};
+  F.filter(f=>f.tipo==='entrada'&&f.status==='pago').forEach(f=>{
+    const nome=(f.cliente||'').trim()||'Sem cliente';
+    map[nome]=(map[nome]||0)+finLiquido(f);
+  });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
+}
+function renderFinCharts(Fop,cutoff,saldoInicialOperacional){
+  const th=chartTheme();
+  const serie=finMonthlySeries(Fop,cutoff,saldoInicialOperacional);
+  drawChart('chartFinMes',{type:'bar',data:{labels:serie.map(s=>s.label),datasets:[{label:'Entrou',data:serie.map(s=>s.ent),backgroundColor:th.green},{label:'Saiu',data:serie.map(s=>s.sai),backgroundColor:th.red}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
+  drawChart('chartFinSaldo',{type:'line',data:{labels:serie.map(s=>s.label),datasets:[{label:'Saldo acumulado',data:serie.map(s=>s.saldo),borderColor:th.accent,backgroundColor:th.accent+'33',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
+  const porCliente=finPorCliente(Fop);
+  drawChart('chartFinCliente',{type:'bar',data:{labels:porCliente.map(([nome])=>nome),datasets:[{data:porCliente.map(([,v])=>v),backgroundColor:th.blue}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtBRL(c.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
+}
 function renderFin(){
   const F=store.financeiro||[];
   const entradas=F.filter(f=>f.tipo==='entrada');
@@ -643,6 +757,7 @@ function renderFin(){
   const saldoInicialOperacional=saldosIniciais.filter(si=>!isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
+  renderFinCharts(Fop,cutoff,saldoInicialOperacional);
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
@@ -733,6 +848,7 @@ function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').for
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
   const btn=$('#addBtn');btn.style.display='flex';btn.textContent=ADD_ACTIONS[v][0];btn.setAttribute('onclick',ADD_ACTIONS[v][1]);
+  if(v==='dash'||v==='fin')resizeCharts();
 }
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)});
 
