@@ -1057,17 +1057,17 @@ function openImportExtrato(){
   extratoLancamentos=[];extratoBanco='';
   openModalWide(`<div class="mtop"><h3>📷 Importar extrato (IA)</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty">Envie um print ou foto do extrato bancário (ou cole com Ctrl+V). A IA vai identificar os lançamentos — você confere, edita e escolhe o que importar antes de gravar.</div>
+      <div class="hist-empty">Envie um ou vários prints/fotos do extrato bancário (ou cole com Ctrl+V). A IA vai identificar os lançamentos de todas as imagens — você confere, edita e escolhe o que importar antes de gravar.</div>
       <div class="fld"><label>De qual conta é esse extrato?</label><select id="extratoBancoSel" onchange="extratoBanco=this.value">${bancoOptions('')}</select></div>
-      <div class="fld"><input type="file" accept="image/*" id="extratoFile" onchange="processarExtrato(this.files[0])"></div>
+      <div class="fld"><input type="file" accept="image/*" multiple id="extratoFile" onchange="processarExtratos(this.files)"></div>
       <div id="extratoStatus"></div>
     </div>`);
   document.addEventListener('paste',extratoPasteHandler);
 }
 function extratoPasteHandler(e){
   if(!$('#extratoFile'))return;
-  const item=[...(e.clipboardData&&e.clipboardData.items||[])].find(i=>i.type&&i.type.startsWith('image/'));
-  if(item)processarExtrato(item.getAsFile());
+  const items=[...(e.clipboardData&&e.clipboardData.items||[])].filter(i=>i.type&&i.type.startsWith('image/'));
+  if(items.length)processarExtratos(items.map(i=>i.getAsFile()));
 }
 function fileToBase64(file){
   return new Promise((resolve,reject)=>{
@@ -1078,18 +1078,23 @@ function fileToBase64(file){
   });
 }
 const EXTRATO_WORKER_URL='https://montanha-analisar-extrato.marcospaulojr.workers.dev';
-async function processarExtrato(file){
-  if(!file)return;
-  $('#extratoStatus').innerHTML='<div class="empty">🔎 Analisando imagem com IA...</div>';
+async function processarExtratos(fileList){
+  const files=[...(fileList||[])];
+  if(!files.length)return;
   try{
-    const image=await fileToBase64(file);
-    const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:file.type||'image/png'})});
-    const data=await res.json();
-    if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
-    extratoLancamentos=expandReservaPairs((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',incluir:true})));
+    let todos=[];
+    for(let i=0;i<files.length;i++){
+      $('#extratoStatus').innerHTML=`<div class="empty">🔎 Analisando imagem ${i+1} de ${files.length} com IA...</div>`;
+      const image=await fileToBase64(files[i]);
+      const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:files[i].type||'image/png'})});
+      const data=await res.json();
+      if(!res.ok||data.error)throw new Error(data.error||`Falha na análise da imagem ${i+1} (HTTP ${res.status})`);
+      todos=todos.concat((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',incluir:true})));
+    }
+    extratoLancamentos=expandReservaPairs(todos);
     renderRevisaoExtrato();
   }catch(e){
-    $('#extratoStatus').innerHTML=`<div class="empty">Erro ao analisar a imagem: ${esc(e.message||String(e))}</div>`;
+    $('#extratoStatus').innerHTML=`<div class="empty">Erro ao analisar as imagens: ${esc(e.message||String(e))}</div>`;
   }
 }
 let extratoBanco='';
