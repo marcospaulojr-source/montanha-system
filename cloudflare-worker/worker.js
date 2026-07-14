@@ -30,7 +30,8 @@ Regras:
 - Se a imagem não for um extrato bancário, devolva {"lancamentos":[]}.`;
 }
 
-function textPrompt(spokenText, hojeISO) {
+function textPrompt(spokenText, hojeISO, contas) {
+  const contasList = Array.isArray(contas) && contas.length ? contas.join(", ") : null;
   return `Você recebeu a transcrição de uma pessoa falando em voz alta sobre um ou mais
 lançamentos financeiros que ela quer registrar. Hoje é ${hojeISO}.
 
@@ -39,7 +40,7 @@ Transcrição: "${spokenText}"
 Extraia o(s) lançamento(s) descrito(s) e devolva SOMENTE um JSON válido, sem markdown,
 sem texto antes ou depois, no formato:
 
-${RESPONSE_FORMAT}
+{"lancamentos":[{"data":"YYYY-MM-DD","descricao":"texto curto","valor":123.45,"tipo":"entrada","banco":"nome exato da conta ou vazio"}]}
 
 Regras:
 - "tipo" é "entrada" para dinheiro que entrou/recebeu e "saida" para dinheiro que saiu/pagou/gastou.
@@ -49,6 +50,12 @@ Regras:
   "ontem" = dia anterior, "dia 20" ou "20" = dia 20 do mês corrente (ou anterior se ainda não chegou
   esse dia neste mês e fizer mais sentido), etc. Se não houver nenhuma menção de data, use ${hojeISO}.
 - "descricao" deve ser um resumo curto e claro (ex: "Pix recebido - cliente Ana", "Pagamento freelancer").
+  NUNCA inclua o nome do banco/conta dentro de "descricao" — o nome do banco/conta vai SEMPRE
+  separado, no campo "banco".
+- O campo "banco" é OBRIGATÓRIO em todo item da lista (nunca omita esse campo).
+${contasList ? `  Se a pessoa mencionar uma conta (ou algo parecido/abreviado com uma delas), preencha "banco" com
+  o nome EXATO de uma destas, copiado sem alterar nada: ${contasList}.
+  Se a pessoa não mencionar nenhuma conta ou não der pra saber qual, preencha "banco" com string vazia "".` : `  Não há contas cadastradas ainda, então preencha "banco" sempre com string vazia "".`}
 - Se a transcrição tiver mais de um lançamento (ex: "recebi 500 do pix e paguei 100 de uber"), devolva
   cada um como um item separado na lista.
 - Se não conseguir identificar nenhum lançamento com sentido financeiro na transcrição, devolva
@@ -76,7 +83,7 @@ export default {
       return json({ error: "Corpo da requisição inválido (esperado JSON)" }, 400);
     }
 
-    const { image, mediaType, text, hoje } = body || {};
+    const { image, mediaType, text, hoje, contas } = body || {};
 
     let messageContent;
     if (image && typeof image === "string") {
@@ -86,7 +93,7 @@ export default {
       ];
     } else if (text && typeof text === "string" && text.trim()) {
       const hojeISO = typeof hoje === "string" && hoje ? hoje : new Date().toISOString().slice(0, 10);
-      messageContent = [{ type: "text", text: textPrompt(text.trim(), hojeISO) }];
+      messageContent = [{ type: "text", text: textPrompt(text.trim(), hojeISO, contas) }];
     } else {
       return json({ error: "Envie 'image' (base64) ou 'text' (transcrição)" }, 400);
     }
