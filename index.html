@@ -321,7 +321,7 @@ button{font-family:inherit}
       </div>
     </section>
     <section class="view" id="fin">
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
       <div class="stats" id="finStats"></div>
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
@@ -864,7 +864,7 @@ function historyHtml(v){
 }
 function openModal(html){$('#modal').innerHTML=html;$('#overlay').classList.add('on')}
 function openModalWide(html){$('#modal').classList.add('wide');openModal(html)}
-function closeM(){$('#overlay').classList.remove('on');$('#modal').classList.remove('wide')}
+function closeM(){$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}}
 function confirmDialog(msg){
   return new Promise(resolve=>{
     const prevHTML=$('#modal').innerHTML;
@@ -1105,7 +1105,67 @@ function confirmarImportExtrato(){
   const novos=selecionados.map(l=>({id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:'',valor:l.valor,desconto:0,formaPagamento:'pix',banco:'',vencimento:l.data,status:'pago',dataPagamento:l.data}));
   store.financeiro=(store.financeiro||[]).concat(novos);
   sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
-  closeM();render();toast(`✓ ${novos.length} lançamento(s) importado(s) do extrato`);
+  closeM();render();toast(`✓ ${novos.length} lançamento(s) adicionado(s)`);
+}
+
+// ---- lançar por voz (Web Speech API + IA via o mesmo Worker) ----
+let vozRecognition=null;
+function openLancarVoz(){
+  extratoLancamentos=[];
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  openModalWide(`<div class="mtop"><h3>🎤 Lançar por voz</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="hist-empty">Clique no microfone e fale o que foi lançado — ex: "recebi 500 reais de pix da Ana hoje" ou "paguei 80 de gasolina ontem". Pode falar mais de um lançamento na mesma frase. Depois confira e confirme antes de gravar.</div>
+      ${SR?`<button class="msave" id="vozBtn" onclick="toggleVoz()" style="background:var(--blue)">🎤 Começar a falar</button>
+      <div id="vozTranscript" class="hist-empty" style="min-height:20px"></div>`:'<div class="empty">Seu navegador não suporta reconhecimento de voz. Tente pelo Chrome.</div>'}
+      <div id="extratoStatus"></div>
+    </div>`);
+}
+function toggleVoz(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(vozRecognition){vozRecognition.stop();return}
+  vozRecognition=new SR();
+  vozRecognition.lang='pt-BR';
+  vozRecognition.interimResults=true;
+  vozRecognition.maxAlternatives=1;
+  const btn=$('#vozBtn');
+  if(btn){btn.textContent='⏹ Parar';btn.style.background='#DC2626'}
+  let finalText='';
+  vozRecognition.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal)finalText+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    if($('#vozTranscript'))$('#vozTranscript').textContent=finalText+interim;
+  };
+  vozRecognition.onerror=e=>{
+    if($('#vozTranscript'))$('#vozTranscript').textContent='Erro no reconhecimento: '+e.error;
+    resetVozBtn();
+  };
+  vozRecognition.onend=()=>{
+    resetVozBtn();
+    if(finalText.trim())processarVoz(finalText.trim());
+  };
+  vozRecognition.start();
+}
+function resetVozBtn(){
+  vozRecognition=null;
+  const btn=$('#vozBtn');
+  if(btn){btn.textContent='🎤 Começar a falar';btn.style.background='var(--blue)'}
+}
+async function processarVoz(texto){
+  if(!$('#extratoStatus'))return;
+  $('#extratoStatus').innerHTML='<div class="empty">🔎 Interpretando com IA...</div>';
+  try{
+    const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:texto,hoje:todayISO()})});
+    const data=await res.json();
+    if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
+    extratoLancamentos=(data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',incluir:true}));
+    renderRevisaoExtrato();
+  }catch(e){
+    $('#extratoStatus').innerHTML=`<div class="empty">Erro ao interpretar: ${esc(e.message||String(e))}</div>`;
+  }
 }
 
 function clientCrmToDb(c){
