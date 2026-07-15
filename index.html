@@ -782,8 +782,12 @@ function renderFin(){
   const entradas=F.filter(f=>f.tipo==='entrada');
   const saidas=F.filter(f=>f.tipo==='saida');
   const saldosIniciais=store.saldosIniciais||[];
-  const cutoff=saldosIniciais.length?saldosIniciais.reduce((min,si)=>si.data<min?si.data:min,saldosIniciais[0].data):null;
-  const contaAposCutoff=f=>!cutoff||(f.dataPagamento&&f.dataPagamento>=cutoff);
+  const cutoffPorConta={};
+  saldosIniciais.forEach(si=>{
+    if(!si.banco)return;
+    if(!cutoffPorConta[si.banco]||si.data>cutoffPorConta[si.banco])cutoffPorConta[si.banco]=si.data;
+  });
+  const contaAposCutoff=f=>{const c=f.banco&&cutoffPorConta[f.banco.trim()];return !c||(f.dataPagamento&&f.dataPagamento>=c)};
   const isReserva=nome=>RESERVE_BANCOS.includes(nome);
   const naoReserva=f=>!f.banco||!isReserva(f.banco.trim());
   const mask=n=>valoresVisiveis?fmtBRL(n):'R$ ••••';
@@ -804,7 +808,8 @@ function renderFin(){
   const saldoInicialOperacional=saldosIniciais.filter(si=>!isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
-  renderFinCharts(Fop,cutoff,saldoInicialOperacional);
+  const FopVisivel=Fop.filter(contaAposCutoff);
+  renderFinCharts(FopVisivel,null,saldoInicialOperacional);
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
@@ -814,9 +819,9 @@ function renderFin(){
   const monthStart=`${y}-${String(m+1).padStart(2,'0')}-01`;
   const monthEnd=new Date(y,m+1,0).toISOString().slice(0,10);
   const yearStart=`${y}-01-01`,yearEnd=`${y}-12-31`;
-  const semana=periodTotais(Fop,weekStart,weekEnd,cutoff);
-  const mes=periodTotais(Fop,monthStart,monthEnd,cutoff);
-  const ano=periodTotais(Fop,yearStart,yearEnd,cutoff);
+  const semana=periodTotais(FopVisivel,weekStart,weekEnd,null);
+  const mes=periodTotais(FopVisivel,monthStart,monthEnd,null);
+  const ano=periodTotais(FopVisivel,yearStart,yearEnd,null);
   $('#finPeriodo').innerHTML=`
     <div class="finperiod-row finperiod-head"><span>Período</span><span>Entrou</span><span>Saiu</span><span>Saldo</span></div>
     <div class="finperiod-row"><span>Esta semana</span><span class="fp-in">${mask(semana.ent)}</span><span class="fp-out">${mask(semana.sai)}</span><span>${mask(semana.ent-semana.sai)}</span></div>
@@ -828,7 +833,7 @@ function renderFin(){
     MESES.map((nome,i)=>{
       const ms=`${y}-${String(i+1).padStart(2,'0')}-01`;
       const me=new Date(y,i+1,0).toISOString().slice(0,10);
-      const pm=periodTotais(Fop,ms,me,cutoff);
+      const pm=periodTotais(FopVisivel,ms,me,null);
       return `<div class="finperiod-row"><span>${nome}</span><span class="fp-in">${mask(pm.ent)}</span><span class="fp-out">${mask(pm.sai)}</span><span>${mask(pm.ent-pm.sai)}</span></div>`;
     }).join('');
   const totalEntradas=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
@@ -842,7 +847,7 @@ function renderFin(){
   $('#finStats').innerHTML=`
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas (pago)</div><div class="num">${mask(totalEntradas)}</div><div class="delta">${entradas.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas (pago)</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidas.length} lançamento(s)</div></div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial + movimentações desde '+fmtD(cutoff):'entradas − saídas (pagas)'}</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial de cada conta + movimentações depois disso':'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
     ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
   $('#finTag').textContent=F.length+' lançamento(s)';
