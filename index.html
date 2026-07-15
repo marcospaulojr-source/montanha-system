@@ -885,7 +885,8 @@ function renderFin(){
   const filtPendentes=filtered.filter(f=>finStatus(f)!=='pago');
   const filtEntradas=filtered.filter(f=>f.tipo==='entrada');
   const filtSaidas=filtered.filter(f=>f.tipo==='saida');
-  const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},pendente:{lab:'⏳ Pendentes',itens:filtPendentes,vazio:'Nenhum pendente neste período.'}};
+  const filtResgates=filtered.filter(f=>f.tipo==='saida'&&f.banco&&isReserva(f.banco.trim()));
+  const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},resgate:{lab:'💸 Resgates',itens:filtResgates,vazio:'Nenhum resgate de reserva neste período.'},pendente:{lab:'⏳ Pendentes',itens:filtPendentes,vazio:'Nenhum pendente neste período.'}};
   if(!grupos[finGroupFilter])finGroupFilter='entrada';
   const ordenarLista=lista=>{
     const arr=lista.slice();
