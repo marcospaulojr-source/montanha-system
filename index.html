@@ -1028,14 +1028,12 @@ function openFin(id,isNew){
       </div>
       <div class="frow">
         <div class="fld"><label id="f_venc_lbl">Data de ${f.tipo==='saida'?'saída':'entrada'} do dinheiro</label><input type="date" id="f_venc" value="${f.vencimento||''}"></div>
-        <div class="fld"><label>Status</label><select id="f_status" onchange="toggleDataPgto(this.value)"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (a receber/pagar)</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
+        <div class="fld"><label>Status</label><select id="f_status"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (a receber/pagar)</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
       </div>
-      <div class="fld" id="fld_datapg" style="${f.status==='pago'?'':'display:none'}"><label>Dia em que entrou/saiu de fato</label><input type="date" id="f_datapg" value="${f.dataPagamento||''}"></div>
       <button class="msave" onclick="saveFin('${id}',${isNew?'true':'false'})">Salvar lançamento</button>
       <button class="mdel" onclick="delFin('${id}')">Excluir</button>
     </div>`);
 }
-function toggleDataPgto(st){$('#fld_datapg').style.display=st==='pago'?'':'none'}
 function toggleVencLabel(tipo){const l=$('#f_venc_lbl');if(l)l.textContent='Data de '+(tipo==='saida'?'saída':'entrada')+' do dinheiro'}
 function saveFin(id,isNew){
   const f=store.financeiro.find(x=>x.id===id);
@@ -1048,7 +1046,7 @@ function saveFin(id,isNew){
   f.banco=$('#f_banco').value.trim();
   f.vencimento=$('#f_venc').value||'';
   f.status=$('#f_status').value;
-  f.dataPagamento=f.status==='pago'?($('#f_datapg').value||todayISO()):'';
+  f.dataPagamento=f.status==='pago'?(f.vencimento||todayISO()):'';
   closeM();render();toast('Lançamento salvo ✓');
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
