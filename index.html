@@ -1514,7 +1514,7 @@ function enviarPropostaEmail(id){
 }
 function siRowHtml(si){
   return `<div class="frow"><div class="fld"><label>Banco/Conta</label><select class="si_banco">${bancoOptions(si?si.banco:'')}</select></div>
-    <div class="fld"><label>Saldo disponível hoje (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
+    <div class="fld"><label>Saldo disponível (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
 }
 function addSiRow(){$('#siRows').insertAdjacentHTML('beforeend',siRowHtml(null))}
 function openGerenciarContas(){
@@ -1588,9 +1588,11 @@ function saveReservaMov(){
 }
 function openSaldoInicial(){
   const items=store.saldosIniciais&&store.saldosIniciais.length?store.saldosIniciais:[null,null];
+  const dataAtual=(store.saldosIniciais&&store.saldosIniciais[0]&&store.saldosIniciais[0].data)||todayISO();
   openModal(`<div class="mtop"><h3>Saldo inicial por conta</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty" style="margin-bottom:12px">Informe quanto você já tem disponível hoje em cada conta. Esse valor é somado ao saldo geral e ao saldo de cada banco, mas não aparece na lista de lançamentos.</div>
+      <div class="hist-empty" style="margin-bottom:12px">Informe quanto você tem disponível em cada conta NA DATA ABAIXO. Lançamentos com data anterior a essa viram só histórico e não mexem no saldo; lançamentos a partir dessa data somam em cima. Esse saldo é somado ao saldo geral e ao saldo de cada banco, mas não aparece na lista de lançamentos.</div>
+      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="si_data" value="${dataAtual}"></div>
       <div id="siRows">${items.map(si=>siRowHtml(si)).join('')}</div>
       <button type="button" onclick="addSiRow()" style="all:unset;cursor:pointer;font-size:12px;color:var(--accent);font-weight:700;margin:8px 0 14px;display:block">+ Adicionar conta</button>
       <button class="msave" onclick="saveSaldoInicial()">Salvar saldo inicial</button>
@@ -1600,8 +1602,9 @@ let savingSaldoInicial=false;
 async function saveSaldoInicial(){
   if(savingSaldoInicial)return;
   const bancos=$$('.si_banco'),valores=$$('.si_valor');
+  const dataEscolhida=($('#si_data')&&$('#si_data').value)||todayISO();
   const arr=[];
-  bancos.forEach((el,i)=>{const nome=el.value.trim();const valor=parseFloat(valores[i].value)||0;if(nome)arr.push({banco:nome,valor,data:todayISO()})});
+  bancos.forEach((el,i)=>{const nome=el.value.trim();const valor=parseFloat(valores[i].value)||0;if(nome)arr.push({banco:nome,valor,data:dataEscolhida})});
   savingSaldoInicial=true;
   const btn=document.querySelector('#modal .msave');
   if(btn){btn.textContent='Salvando...';btn.disabled=true}
