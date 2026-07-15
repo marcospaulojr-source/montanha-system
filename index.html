@@ -327,7 +327,7 @@ button{font-family:inherit}
       </div>
     </section>
     <section class="view" id="fin">
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><span id="finUndoBtn"></span><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
       <div class="stats" id="finStats"></div>
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="openGerenciarContas()">⚙️ Gerenciar contas</span><span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
@@ -719,6 +719,30 @@ function renderCal(){
 }
 function calMove(d){calDate.setMonth(calDate.getMonth()+d);renderCal()}
 
+let finUndoStack=[];
+function snapshotFinanceiro(){
+  finUndoStack.push(JSON.parse(JSON.stringify(store.financeiro||[])));
+  if(finUndoStack.length>20)finUndoStack.shift();
+}
+async function desfazerFinanceiro(){
+  if(!finUndoStack.length){toast('Nada para desfazer');return}
+  const anterior=finUndoStack.pop();
+  const atualIds=new Set(store.financeiro.map(f=>f.id));
+  const anteriorIds=new Set(anterior.map(f=>f.id));
+  const paraInserir=anterior.filter(f=>!atualIds.has(f.id));
+  const paraExcluir=store.financeiro.filter(f=>!anteriorIds.has(f.id)).map(f=>f.id);
+  const paraAtualizar=anterior.filter(f=>{
+    if(!atualIds.has(f.id))return false;
+    const atual=store.financeiro.find(x=>x.id===f.id);
+    return JSON.stringify(atual)!==JSON.stringify(f);
+  });
+  store.financeiro=anterior;
+  render();
+  toast('Última ação desfeita ✓');
+  if(paraExcluir.length)sb.from('financeiro').delete().in('id',paraExcluir).then(sbErr);
+  if(paraInserir.length)sb.from('financeiro').insert(paraInserir.map(finToDb)).then(sbErr);
+  paraAtualizar.forEach(f=>sb.from('financeiro').update(finToDb(f)).eq('id',f.id).then(sbErr));
+}
 function periodTotais(F,start,end,cutoff){
   const inP=f=>f.status==='pago'&&f.dataPagamento&&f.dataPagamento>=start&&f.dataPagamento<=end&&(!cutoff||f.dataPagamento>=cutoff);
   const ent=F.filter(f=>f.tipo==='entrada'&&inP(f)).reduce((s,f)=>s+finLiquido(f),0);
@@ -764,6 +788,7 @@ function renderFin(){
   const naoReserva=f=>!f.banco||!isReserva(f.banco.trim());
   const mask=n=>valoresVisiveis?fmtBRL(n):'R$ ••••';
   $('#finEyeBtn').innerHTML=`<button class="eyebtn" onclick="toggleValoresVisiveis()">${valoresVisiveis?'🙈 Ocultar valores':'👁️ Mostrar valores'}</button>`;
+  $('#finUndoBtn').innerHTML=finUndoStack.length?`<button class="eyebtn" onclick="desfazerFinanceiro()">↩️ Desfazer última ação (${finUndoStack.length})</button>`:'';
 
   const bancoMap={};
   saldosIniciais.forEach(si=>{bancoMap[si.banco]=(bancoMap[si.banco]||0)+si.valor});
@@ -882,7 +907,8 @@ function limparFinSelecionados(){finSelecionados.clear();renderFin()}
 async function excluirFinSelecionados(){
   const ids=[...finSelecionados];
   if(!ids.length)return;
-  if(!(await confirmDialog(`Excluir ${ids.length} lançamento(s) selecionado(s)? Essa ação não pode ser desfeita.`)))return;
+  if(!(await confirmDialog(`Excluir ${ids.length} lançamento(s) selecionado(s)?`)))return;
+  snapshotFinanceiro();
   store.financeiro=store.financeiro.filter(f=>!finSelecionados.has(f.id));
   finSelecionados.clear();
   render();toast('Lançamentos excluídos ✓');
@@ -1005,6 +1031,7 @@ function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicad
 function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas');sb.from('videos').update({estagio:v.estagio,mods:v.mods,historico:v.historico}).eq('id',id).then(sbErr)}
 
 function addFinanceiro(){
+  snapshotFinanceiro();
   const bancoPadrao=BANCOS.includes('Nubank PF')?'Nubank PF':(BANCOS[0]||'');
   const f={id:uid(),tipo:'saida',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:'pago',dataPagamento:todayISO()};
   (store.financeiro=store.financeiro||[]).push(f);
@@ -1036,6 +1063,7 @@ function openFin(id,isNew){
 }
 function toggleVencLabel(tipo){const l=$('#f_venc_lbl');if(l)l.textContent='Data de '+(tipo==='saida'?'saída':'entrada')+' do dinheiro'}
 function saveFin(id,isNew){
+  if(!isNew)snapshotFinanceiro();
   const f=store.financeiro.find(x=>x.id===id);
   f.tipo=$('#f_tipo').value;
   f.descricao=$('#f_desc').value.trim();
@@ -1052,12 +1080,14 @@ function saveFin(id,isNew){
 }
 async function delFin(id){
   if(!(await confirmDialog('Excluir este lançamento?')))return;
+  snapshotFinanceiro();
   store.financeiro=store.financeiro.filter(x=>x.id!==id);
   closeM();render();toast('Lançamento excluído');
   sb.from('financeiro').delete().eq('id',id).then(sbErr);
 }
 async function clearFinanceiro(){
   if(!(await confirmDialog('Isso vai apagar TODOS os lançamentos (entradas e saídas) registrados até agora. O saldo inicial definido não é afetado. Confirma?')))return;
+  snapshotFinanceiro();
   const ids=store.financeiro.map(f=>f.id);
   store.financeiro=[];
   render();toast('Lançamentos limpos ✓');
@@ -1177,6 +1207,7 @@ function extratoRow(l,i){
 function confirmarImportExtrato(){
   const selecionados=extratoLancamentos.filter(l=>l.incluir);
   if(!selecionados.length){toast('Nenhum lançamento selecionado');return}
+  snapshotFinanceiro();
   const novos=selecionados.map(l=>({id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:'',valor:l.valor,desconto:0,formaPagamento:'pix',banco:l.banco||'',vencimento:l.data,status:'pago',dataPagamento:l.data}));
   store.financeiro=(store.financeiro||[]).concat(novos);
   sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
@@ -1529,6 +1560,7 @@ function saveReservaMov(){
   const tipo=$('#rm_tipo').value;
   const valor=parseFloat($('#rm_valor').value)||0;
   if(valor<=0){alert('Informe um valor válido.');return}
+  snapshotFinanceiro();
   const data=$('#rm_data').value||todayISO();
   const desc=$('#rm_desc').value.trim()||(tipo==='entrada'?'Depósito na reserva':'Retirada da reserva');
   const destino=$('#rm_destino').value;
