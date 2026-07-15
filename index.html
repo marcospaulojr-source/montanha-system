@@ -451,7 +451,7 @@ async function fetchAll(){
   const current=(clients.find(c=>c.id===lastId)||clients[0]||{}).id||null;
   const cfg=cfgRows&&cfgRows[0];
   if(cfg&&Array.isArray(cfg.bancos)&&cfg.bancos.length){BANCOS.length=0;BANCOS.push(...cfg.bancos)}
-  if(cfg&&Array.isArray(cfg.reserve_bancos)){RESERVE_BANCOS.length=0;RESERVE_BANCOS.push(...cfg.reserve_bancos)}
+  if(cfg&&Array.isArray(cfg.reserve_bancos)&&cfg.reserve_bancos.length){RESERVE_BANCOS.length=0;RESERVE_BANCOS.push(...cfg.reserve_bancos)}
   store={
     clients,
     current,
