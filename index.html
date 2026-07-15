@@ -847,8 +847,8 @@ function renderFin(){
     </div>`;
   };
   const filtPendentes=filtered.filter(f=>finStatus(f)!=='pago');
-  const filtEntradas=filtered.filter(f=>f.tipo==='entrada'&&finStatus(f)==='pago');
-  const filtSaidas=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)==='pago');
+  const filtEntradas=filtered.filter(f=>f.tipo==='entrada');
+  const filtSaidas=filtered.filter(f=>f.tipo==='saida');
   const grupos={entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},pendente:{lab:'⏳ Pendentes',itens:filtPendentes,vazio:'Nenhum pendente neste período.'}};
   if(!grupos[finGroupFilter])finGroupFilter='entrada';
   const ordenarLista=lista=>{
