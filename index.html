@@ -96,6 +96,10 @@ button{font-family:inherit}
 .prow-top .info{flex:1;min-width:0}
 .findel{all:unset;cursor:pointer;font-size:14px;padding:6px;border-radius:8px;line-height:1;opacity:.55;flex-shrink:0}
 .findel:hover{opacity:1;background:#FEF2F2}
+.finselect{flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+.fin-bulkbar{display:flex;align-items:center;gap:10px;padding:10px 19px;background:#FFF7ED;border-bottom:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--text)}
+.fin-bulkbar button{all:unset;cursor:pointer;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;background:var(--card);border:1px solid var(--line);color:var(--text)}
+.fin-bulkbar button.del{background:#DC2626;color:#fff;border-color:#DC2626;margin-left:auto}
 .mini{display:flex;padding:2px 4px 0}
 .mini .s{flex:1;text-align:center;position:relative;font-size:10px;color:var(--muted);font-weight:600}
 .mini .s::before{content:'';position:absolute;top:24px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
@@ -835,7 +839,7 @@ function renderFin(){
     const stLabel=st==='pago'?'Pago':st==='atrasado'?'Atrasado':'Pendente';
     const isIn=f.tipo==='entrada';
     return `<div class="prow" onclick="openFin('${f.id}')">
-      <div class="prow-top"><div class="thumb" style="background:${isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)'}">${isIn?'↑':'↓'}</div>
+      <div class="prow-top"><input type="checkbox" class="finselect" data-id="${f.id}" onclick="event.stopPropagation()" onchange="toggleFinSelecionado('${f.id}',this.checked)" ${finSelecionados.has(f.id)?'checked':''}><div class="thumb" style="background:${isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)'}">${isIn?'↑':'↓'}</div>
         <div class="info">${f.cliente?`<div class="cliname">${esc(f.cliente)}</div>`:''}<div class="t">${esc(f.descricao||'(sem descrição)')}</div><div class="m">${finDate(f)?fmtD(finDate(f))+' · ':''}${PAY_METHODS[f.formaPagamento]||''}${f.banco?' · '+bancoDot(f.banco)+esc(f.banco):''}${f.desconto?' · Desconto na fonte: '+mask(f.desconto):''}</div></div>
         ${st!=='pago'?`<span class="stagechip" style="background:${stColor}">${stLabel}</span>`:''}
         <button class="findel" onclick="event.stopPropagation();delFin('${f.id}')" title="Excluir lançamento">🗑️</button></div>
@@ -862,7 +866,9 @@ function renderFin(){
   </div>`;
   const ativo=grupos[finGroupFilter];
   const itensOrdenados=ordenarLista(ativo.itens);
-  $('#finList').innerHTML=tabsHtml+groupTabsHtml+(itensOrdenados.length?itensOrdenados.map(finRow).join(''):`<div class="empty">${ativo.vazio}</div>`);
+  [...finSelecionados].forEach(id=>{if(!F.some(f=>f.id===id))finSelecionados.delete(id)});
+  const bulkBarHtml=finSelecionados.size?`<div class="fin-bulkbar"><span>${finSelecionados.size} selecionado(s)</span><button onclick="limparFinSelecionados()">Limpar seleção</button><button class="del" onclick="excluirFinSelecionados()">🗑️ Excluir selecionados</button></div>`:'';
+  $('#finList').innerHTML=tabsHtml+groupTabsHtml+bulkBarHtml+(itensOrdenados.length?itensOrdenados.map(finRow).join(''):`<div class="empty">${ativo.vazio}</div>`);
 }
 let finFilter='all';
 function setFinFilter(k){finFilter=k;renderFin()}
@@ -870,6 +876,18 @@ let finGroupFilter='entrada';
 function setFinGroupFilter(k){finGroupFilter=k;renderFin()}
 let finSort='data_desc';
 function setFinSort(v){finSort=v;renderFin()}
+let finSelecionados=new Set();
+function toggleFinSelecionado(id,checked){checked?finSelecionados.add(id):finSelecionados.delete(id);renderFin()}
+function limparFinSelecionados(){finSelecionados.clear();renderFin()}
+async function excluirFinSelecionados(){
+  const ids=[...finSelecionados];
+  if(!ids.length)return;
+  if(!(await confirmDialog(`Excluir ${ids.length} lançamento(s) selecionado(s)? Essa ação não pode ser desfeita.`)))return;
+  store.financeiro=store.financeiro.filter(f=>!finSelecionados.has(f.id));
+  finSelecionados.clear();
+  render();toast('Lançamentos excluídos ✓');
+  sb.from('financeiro').delete().in('id',ids).then(sbErr);
+}
 let valoresVisiveis=false;
 function toggleValoresVisiveis(){valoresVisiveis=!valoresVisiveis;renderFin()}
 
@@ -987,7 +1005,7 @@ function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicad
 function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas');sb.from('videos').update({estagio:v.estagio,mods:v.mods,historico:v.historico}).eq('id',id).then(sbErr)}
 
 function addFinanceiro(){
-  const f={id:uid(),tipo:'entrada',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:'',vencimento:todayISO(),status:'pendente',dataPagamento:''};
+  const f={id:uid(),tipo:'entrada',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:'',vencimento:todayISO(),status:'pago',dataPagamento:todayISO()};
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
   sb.from('financeiro').insert(finToDb(f)).then(sbErr);
@@ -996,7 +1014,7 @@ function openFin(id,isNew){
   const f=store.financeiro.find(x=>x.id===id);
   openModal(`<div class="mtop"><h3>Lançamento financeiro</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="fld"><label>Tipo</label><select id="f_tipo"><option value="entrada" ${f.tipo==='entrada'?'selected':''}>Entrada</option><option value="saida" ${f.tipo==='saida'?'selected':''}>Saída</option></select></div>
+      <div class="fld"><label>Tipo</label><select id="f_tipo" onchange="toggleVencLabel(this.value)"><option value="entrada" ${f.tipo==='entrada'?'selected':''}>Entrada</option><option value="saida" ${f.tipo==='saida'?'selected':''}>Saída</option></select></div>
       <div class="fld"><label>Descrição</label><input id="f_desc" value="${esc(f.descricao)}" placeholder="Ex: Pagamento vídeo institucional"></div>
       <div class="fld"><label>Cliente (opcional)</label><select id="f_cliente">${clienteOptions(f.cliente||'')}</select></div>
       <div class="frow">
@@ -1008,25 +1026,20 @@ function openFin(id,isNew){
         <div class="fld"><label>Banco/Conta</label><select id="f_banco">${bancoOptions(f.banco)}</select></div>
       </div>
       <div class="frow">
-        <div class="fld"><label>${isNew?'1ª parcela vence em':'Prazo de pagamento'}</label><input type="date" id="f_venc" value="${f.vencimento||''}"></div>
-        <div class="fld"><label>Status${isNew?' (desta parcela)':''}</label><select id="f_status" onchange="toggleDataPgto(this.value)"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (a receber/pagar)</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
+        <div class="fld"><label id="f_venc_lbl">Data de ${f.tipo==='saida'?'saída':'entrada'} do dinheiro</label><input type="date" id="f_venc" value="${f.vencimento||''}"></div>
+        <div class="fld"><label>Status</label><select id="f_status" onchange="toggleDataPgto(this.value)"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (a receber/pagar)</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
       </div>
-      <div class="fld" id="fld_datapg" style="${f.status==='pago'?'':'display:none'}"><label>Dia em que entrou/saiu</label><input type="date" id="f_datapg" value="${f.dataPagamento||''}"></div>
-      ${isNew?`<div class="frow">
-        <div class="fld"><label>Dividir em quantas parcelas?</label><input type="number" min="1" max="24" id="f_parcelas" value="1"></div>
-        <div class="fld"><label>Intervalo entre parcelas</label><select id="f_intervalo"><option value="mensal">Mensal</option><option value="quinzenal">Quinzenal</option><option value="semanal">Semanal</option></select></div>
-      </div>
-      <div class="hist-empty">As parcelas seguintes são criadas automaticamente como "Pendente" (a receber/a pagar), com vencimento espaçado a partir da 1ª parcela.</div>`:''}
+      <div class="fld" id="fld_datapg" style="${f.status==='pago'?'':'display:none'}"><label>Dia em que entrou/saiu de fato</label><input type="date" id="f_datapg" value="${f.dataPagamento||''}"></div>
       <button class="msave" onclick="saveFin('${id}',${isNew?'true':'false'})">Salvar lançamento</button>
       <button class="mdel" onclick="delFin('${id}')">Excluir</button>
     </div>`);
 }
 function toggleDataPgto(st){$('#fld_datapg').style.display=st==='pago'?'':'none'}
+function toggleVencLabel(tipo){const l=$('#f_venc_lbl');if(l)l.textContent='Data de '+(tipo==='saida'?'saída':'entrada')+' do dinheiro'}
 function saveFin(id,isNew){
   const f=store.financeiro.find(x=>x.id===id);
   f.tipo=$('#f_tipo').value;
-  const descBase=$('#f_desc').value.trim();
-  f.descricao=descBase;
+  f.descricao=$('#f_desc').value.trim();
   f.cliente=$('#f_cliente').value.trim();
   f.valor=parseFloat($('#f_valor').value)||0;
   f.desconto=parseFloat($('#f_desconto').value)||0;
@@ -1035,33 +1048,7 @@ function saveFin(id,isNew){
   f.vencimento=$('#f_venc').value||'';
   f.status=$('#f_status').value;
   f.dataPagamento=f.status==='pago'?($('#f_datapg').value||todayISO()):'';
-  const parcelas=isNew&&$('#f_parcelas')?Math.max(1,parseInt($('#f_parcelas').value)||1):1;
-  if(parcelas>1){
-    const total=f.valor;
-    const base=Math.floor((total/parcelas)*100)/100;
-    const valores=Array(parcelas).fill(base);
-    valores[parcelas-1]=Math.round((total-base*(parcelas-1))*100)/100;
-    const totalDesc=f.desconto;
-    const baseDesc=Math.floor((totalDesc/parcelas)*100)/100;
-    const descontos=Array(parcelas).fill(baseDesc);
-    descontos[parcelas-1]=Math.round((totalDesc-baseDesc*(parcelas-1))*100)/100;
-    const intervalo=$('#f_intervalo').value;
-    const dataBase=f.vencimento||todayISO();
-    f.descricao=`${descBase} (parcela 1/${parcelas})`;
-    f.valor=valores[0];
-    f.desconto=descontos[0];
-    const novos=[];
-    for(let i=2;i<=parcelas;i++){
-      const d=new Date(dataBase+'T00:00:00');
-      if(intervalo==='mensal')d.setMonth(d.getMonth()+(i-1));
-      else if(intervalo==='quinzenal')d.setDate(d.getDate()+15*(i-1));
-      else d.setDate(d.getDate()+7*(i-1));
-      const nf={id:uid(),tipo:f.tipo,descricao:`${descBase} (parcela ${i}/${parcelas})`,cliente:f.cliente,valor:valores[i-1],desconto:descontos[i-1],formaPagamento:f.formaPagamento,banco:f.banco,vencimento:d.toISOString().slice(0,10),status:'pendente',dataPagamento:''};
-      store.financeiro.push(nf);novos.push(nf);
-    }
-    if(novos.length)sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
-  }
-  closeM();render();toast(parcelas>1?`Lançamento dividido em ${parcelas}x ✓`:'Lançamento salvo ✓');
+  closeM();render();toast('Lançamento salvo ✓');
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
 async function delFin(id){
