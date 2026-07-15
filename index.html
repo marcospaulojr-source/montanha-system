@@ -1589,18 +1589,32 @@ function openSaldoInicial(){
       <button class="msave" onclick="saveSaldoInicial()">Salvar saldo inicial</button>
     </div>`);
 }
-function saveSaldoInicial(){
+let savingSaldoInicial=false;
+async function saveSaldoInicial(){
+  if(savingSaldoInicial)return;
   const bancos=$$('.si_banco'),valores=$$('.si_valor');
   const arr=[];
   bancos.forEach((el,i)=>{const nome=el.value.trim();const valor=parseFloat(valores[i].value)||0;if(nome)arr.push({banco:nome,valor,data:todayISO()})});
-  const oldIds=(store.saldosIniciais||[]).map(s=>s.id).filter(Boolean);
-  store.saldosIniciais=arr;
-  closeM();render();toast('Saldo inicial definido ✓');
-  (async()=>{
-    if(oldIds.length)sbErr(await sb.from('saldos_iniciais').delete().in('id',oldIds));
-    if(arr.length)sbErr(await sb.from('saldos_iniciais').insert(arr.map(s=>({banco:s.banco,valor:s.valor,data:s.data}))));
-    await fetchAll();render();
-  })();
+  savingSaldoInicial=true;
+  const btn=document.querySelector('#modal .msave');
+  if(btn){btn.textContent='Salvando...';btn.disabled=true}
+  try{
+    const{data:existing,error:selErr}=await sb.from('saldos_iniciais').select('id');
+    if(selErr){toast('⚠️ Erro ao ler saldo atual: '+selErr.message);return}
+    const existingIds=(existing||[]).map(r=>r.id);
+    if(existingIds.length){
+      const{error}=await sb.from('saldos_iniciais').delete().in('id',existingIds);
+      if(error){toast('⚠️ Erro ao limpar saldo anterior: '+error.message);return}
+    }
+    if(arr.length){
+      const{error}=await sb.from('saldos_iniciais').insert(arr.map(s=>({banco:s.banco,valor:s.valor,data:s.data})));
+      if(error){toast('⚠️ Erro ao salvar: '+error.message);return}
+    }
+    await fetchAll();
+    closeM();render();toast('Saldo inicial definido ✓');
+  }finally{
+    savingSaldoInicial=false;
+  }
 }
 
 const SWATCHES=['#EF7B24','#2563EB','#16A34A','#7C3AED','#DC2626','#0891B2','#DB2777','#0B2545'];
