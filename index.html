@@ -837,8 +837,7 @@ function renderFin(){
     return `<div class="prow" onclick="openFin('${f.id}')">
       <div class="prow-top"><div class="thumb" style="background:${isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)'}">${isIn?'↑':'↓'}</div>
         <div class="info">${f.cliente?`<div class="cliname">${esc(f.cliente)}</div>`:''}<div class="t">${esc(f.descricao||'(sem descrição)')}</div><div class="m">${finDate(f)?fmtD(finDate(f))+' · ':''}${PAY_METHODS[f.formaPagamento]||''}${f.banco?' · '+bancoDot(f.banco)+esc(f.banco):''}${f.desconto?' · Desconto na fonte: '+mask(f.desconto):''}</div></div>
-        <span class="chip" style="background:${isIn?'#ECFDF5':'#FEF2F2'};color:${isIn?'var(--green)':'#E11D48'}">${isIn?'Entrada':'Saída'}</span>
-        <span class="stagechip" style="background:${stColor}">${stLabel}</span>
+        ${st!=='pago'?`<span class="stagechip" style="background:${stColor}">${stLabel}</span>`:''}
         <button class="findel" onclick="event.stopPropagation();delFin('${f.id}')" title="Excluir lançamento">🗑️</button></div>
       <div class="finval" style="color:${isIn?'var(--green)':'#E11D48'}">${isIn?'+ ':'− '}${mask(finLiquido(f))}${f.desconto?` <span style="font-size:11px;color:var(--muted);font-weight:600">(bruto ${mask(f.valor)})</span>`:''}</div>
     </div>`;
