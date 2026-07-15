@@ -325,7 +325,7 @@ button{font-family:inherit}
     <section class="view" id="fin">
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
       <div class="stats" id="finStats"></div>
-      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
+      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="openGerenciarContas()">⚙️ Gerenciar contas</span><span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📈 Evolução financeira</h2>
@@ -358,7 +358,7 @@ const OBJ={autoridade:'Autoridade',captacao:'Captação',redes_sociais:'Redes So
 const STAGES=[['agendado','Agendado'],['roteiro','Roteiro'],['captacao','Captação'],['edicao','Edição'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovação'],['publicado','Publicado'],['finalizado','Finalizado']];
 const STAGE_COLOR={agendado:'#0EA5E9',roteiro:'#64748B',captacao:'#2563EB',edicao:'#7C3AED',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
 const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao:'Cartão',transferencia:'Transferência',dinheiro:'Dinheiro',outro:'Outro'};
-const BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
+let BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
 const BANCO_COLORS=['#2563EB','#7C3AED','#DB2777','#D97706','#0D9488','#DC2626','#0EA5E9','#65A30D'];
 function bancoColor(nome){
   const idx=BANCOS.indexOf(nome);
@@ -367,7 +367,7 @@ function bancoColor(nome){
 function bancoDot(nome){
   return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bancoColor(nome)};margin-right:5px;vertical-align:middle"></span>`;
 }
-const RESERVE_BANCOS=['Nubank Caixinha Roxa','Nubank Caixinha'];
+let RESERVE_BANCOS=['Nubank Caixinha Roxa','Nubank Caixinha'];
 const bancoOptions=sel=>`<option value="">Selecione...</option>${BANCOS.map(b=>`<option value="${b}" ${sel===b?'selected':''}>${b}</option>`).join('')}`;
 function clienteOptions(sel){
   const names=(store.clients||[]).map(c=>c.brand.name).sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -449,6 +449,9 @@ async function fetchAll(){
   (videoRows||[]).forEach(row=>{const c=clients.find(x=>x.id===row.client_id);if(c)c.videos.push(dbToVideo(row))});
   const lastId=lsGet('lastClientId');
   const current=(clients.find(c=>c.id===lastId)||clients[0]||{}).id||null;
+  const cfg=cfgRows&&cfgRows[0];
+  if(cfg&&Array.isArray(cfg.bancos)&&cfg.bancos.length){BANCOS.length=0;BANCOS.push(...cfg.bancos)}
+  if(cfg&&Array.isArray(cfg.reserve_bancos)){RESERVE_BANCOS.length=0;RESERVE_BANCOS.push(...cfg.reserve_bancos)}
   store={
     clients,
     current,
@@ -1472,6 +1475,39 @@ function siRowHtml(si){
     <div class="fld"><label>Saldo disponível hoje (R$)</label><input type="number" step="0.01" class="si_valor" value="${si?si.valor:''}"></div></div>`;
 }
 function addSiRow(){$('#siRows').insertAdjacentHTML('beforeend',siRowHtml(null))}
+function openGerenciarContas(){
+  openModal(`<div class="mtop"><h3>⚙️ Contas bancárias</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="hist-empty">Essas contas aparecem nos lançamentos, no saldo por conta e na importação de extrato/voz. Marque "Reserva" pras contas tipo caixinha, que ficam fora do saldo principal.</div>
+      <div class="extrato-head" style="grid-template-columns:1fr 90px 32px"><span>Nome da conta</span><span>Reserva</span><span></span></div>
+      <div id="contasList">${BANCOS.map(b=>contaRow(b)).join('')}</div>
+      <button type="button" onclick="addContaRow()" style="all:unset;cursor:pointer;font-size:12px;color:var(--accent);font-weight:700;margin:8px 0 14px;display:block">+ Adicionar conta</button>
+      <button class="msave" onclick="salvarContas()">Salvar contas</button>
+    </div>`);
+}
+function contaRow(nome){
+  return `<div class="frow" style="grid-template-columns:1fr 90px 32px;align-items:center;gap:8px;margin-bottom:8px">
+    <input type="text" class="conta_nome" value="${esc(nome)}" placeholder="Ex: Bradesco PJ">
+    <label style="display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;color:var(--muted)"><input type="checkbox" class="conta_reserva" ${RESERVE_BANCOS.includes(nome)?'checked':''}></label>
+    <button type="button" onclick="this.closest('.frow').remove()" style="all:unset;cursor:pointer;color:#DC2626;font-size:16px;padding:4px;text-align:center">✕</button>
+  </div>`;
+}
+function addContaRow(){$('#contasList').insertAdjacentHTML('beforeend',contaRow(''))}
+function salvarContas(){
+  const nomes=$$('.conta_nome'),reservas=$$('.conta_reserva');
+  const novos=[],novaReserva=[];
+  nomes.forEach((inp,i)=>{
+    const nome=inp.value.trim();
+    if(!nome)return;
+    if(!novos.includes(nome))novos.push(nome);
+    if(reservas[i].checked&&!novaReserva.includes(nome))novaReserva.push(nome);
+  });
+  if(!novos.length){toast('Adicione ao menos uma conta');return}
+  BANCOS.length=0;BANCOS.push(...novos);
+  RESERVE_BANCOS.length=0;RESERVE_BANCOS.push(...novaReserva);
+  closeM();render();toast('Contas atualizadas ✓');
+  sb.from('app_config').update({bancos:BANCOS,reserve_bancos:RESERVE_BANCOS}).eq('id',1).then(sbErr);
+}
 function openReservaMov(){
   const outrasContas=BANCOS.filter(b=>!RESERVE_BANCOS.includes(b));
   openModal(`<div class="mtop"><h3>Movimentar reserva</h3><span class="x" onclick="closeM()">✕</span></div>
