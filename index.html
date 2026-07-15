@@ -138,6 +138,7 @@ button{font-family:inherit}
 .fintab:hover{background:#E2E8F0}
 .fintab.on{background:var(--accent);color:#fff}
 .finbank-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #F1F5F9;font-size:13px}
+.finbank-section{font-size:11px;font-weight:700;color:#7C3AED;text-transform:uppercase;letter-spacing:.03em;padding:14px 0 6px;border-top:1px solid var(--line);margin-top:4px}
 .finbank-row:last-child{border-bottom:none}
 .vcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:9px;cursor:grab;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:.15s;border-left:3px solid var(--steel)}
 .vcard:hover{transform:translateY(-2px);box-shadow:var(--sh)}
@@ -800,11 +801,16 @@ function renderFin(){
     const b=f.banco.trim();
     bancoMap[b]=(bancoMap[b]||0)+(f.tipo==='entrada'?finLiquido(f):-finLiquido(f));
   });
-  const bancos=Object.entries(bancoMap).sort((a,b)=>b[1]-a[1]);
-  $('#finBancos').innerHTML=bancos.length?bancos.map(([nome,saldo])=>`
+  const bancoRow=([nome,saldo])=>`
     <div class="finbank-row"><span>${bancoDot(nome)}${esc(nome)}</span>
       <span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${mask(saldo)}</span>
-    </div>`).join(''):'<div class="empty">Nenhum saldo definido ainda — clique em "Definir saldo inicial".</div>';
+    </div>`;
+  const bancosNormais=Object.entries(bancoMap).filter(([nome])=>!isReserva(nome)).sort((a,b)=>b[1]-a[1]);
+  const bancosReserva=Object.entries(bancoMap).filter(([nome])=>isReserva(nome)).sort((a,b)=>b[1]-a[1]);
+  $('#finBancos').innerHTML=(bancosNormais.length||bancosReserva.length)?`
+    ${bancosNormais.map(bancoRow).join('')}
+    ${bancosReserva.length?`<div class="finbank-section">🔒 Reserva (fora do saldo principal)</div>${bancosReserva.map(bancoRow).join('')}`:''}
+  `:'<div class="empty">Nenhum saldo definido ainda — clique em "Definir saldo inicial".</div>';
   const saldoInicialOperacional=saldosIniciais.filter(si=>!isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
