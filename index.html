@@ -1005,7 +1005,8 @@ function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicad
 function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas');sb.from('videos').update({estagio:v.estagio,mods:v.mods,historico:v.historico}).eq('id',id).then(sbErr)}
 
 function addFinanceiro(){
-  const f={id:uid(),tipo:'entrada',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:'',vencimento:todayISO(),status:'pago',dataPagamento:todayISO()};
+  const bancoPadrao=BANCOS.includes('Nubank PF')?'Nubank PF':(BANCOS[0]||'');
+  const f={id:uid(),tipo:'saida',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:'pago',dataPagamento:todayISO()};
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
   sb.from('financeiro').insert(finToDb(f)).then(sbErr);
