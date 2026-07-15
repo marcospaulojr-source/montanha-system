@@ -1693,26 +1693,40 @@ async function getBackupDirHandle(){
 }
 async function atualizarLabelPastaBackup(){
   const el=$('#pastaBackupLbl');if(!el)return;
-  try{const handle=await idbGet('backupDir');el.textContent=handle?('Pasta atual: '+handle.name):'Nenhuma pasta escolhida (salva na pasta de Downloads)'}
-  catch(e){el.textContent='Nenhuma pasta escolhida (salva na pasta de Downloads)'}
+  try{const handle=await idbGet('backupDir');el.textContent=handle?('Pasta atual: '+handle.name+' · backup automático 1x/dia'):'Nenhuma pasta escolhida (backup automático desligado; manual salva em Downloads)'}
+  catch(e){el.textContent='Nenhuma pasta escolhida (backup automático desligado; manual salva em Downloads)'}
 }
-async function exportAll(){
+async function writeBackupFile(dir,silent){
   const json=JSON.stringify(store,null,2);
   const filename='backup-painel-completo-'+todayISO()+'.json';
+  const fh=await dir.getFileHandle(filename,{create:true});
+  const w=await fh.createWritable();
+  await w.write(json);await w.close();
+  if(!silent)toast('💾 Backup salvo na pasta escolhida ✓');
+}
+async function exportAll(){
   const dir=await getBackupDirHandle();
   if(dir){
-    try{
-      const fh=await dir.getFileHandle(filename,{create:true});
-      const w=await fh.createWritable();
-      await w.write(json);await w.close();
-      toast('💾 Backup salvo na pasta escolhida ✓');
-      return;
-    }catch(e){console.error(e)}
+    try{await writeBackupFile(dir,false);return}catch(e){console.error(e)}
   }
+  const json=JSON.stringify(store,null,2);
+  const filename='backup-painel-completo-'+todayISO()+'.json';
   const blob=new Blob([json],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=filename;a.click();
   toast('Backup completo exportado ✓');
+}
+async function maybeAutoBackup(){
+  try{
+    if(lsGet('lastAutoBackupDate')===todayISO())return;
+    const handle=await idbGet('backupDir');
+    if(!handle)return;
+    const perm=await handle.queryPermission({mode:'readwrite'});
+    if(perm!=='granted')return;
+    await writeBackupFile(handle,true);
+    lsSet('lastAutoBackupDate',todayISO());
+    toast('💾 Backup automático do dia salvo ✓');
+  }catch(e){console.error('Falha no backup automático:',e)}
 }
 
 // ---- Google Agenda ----
@@ -1808,6 +1822,7 @@ async function boot(){
   $('#appRoot').classList.remove('hidden');
   render();
   atualizarLabelPastaBackup();
+  maybeAutoBackup();
 }
 function toggleLoginPass(){const i=$('#loginPass');i.type=i.type==='password'?'text':'password'}
 async function forgotPassword(){
