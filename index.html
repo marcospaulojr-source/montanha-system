@@ -295,6 +295,7 @@ button{font-family:inherit}
   <header class="top">
     <div><h1 id="vTitle">Dashboard</h1><div class="sub" id="vSub">Visão geral da produção</div></div>
     <select id="cliSelectMobile" class="mobileCliSel" onchange="switchClient(this.value)"></select>
+    <span id="finEyeBtnTop"></span>
     <button class="add" id="addBtn" onclick="addVideo()">＋ Nova tarefa</button>
   </header>
   <div class="content">
@@ -328,7 +329,7 @@ button{font-family:inherit}
       </div>
     </section>
     <section class="view" id="fin">
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><span id="finUndoBtn"></span><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button><span id="finEyeBtn"></span></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><span id="finUndoBtn"></span><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button></div>
       <div class="stats" id="finStats"></div>
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="openGerenciarContas()">⚙️ Gerenciar contas</span><span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
@@ -792,7 +793,7 @@ function renderFin(){
   const isReserva=nome=>RESERVE_BANCOS.includes(nome);
   const naoReserva=f=>!f.banco||!isReserva(f.banco.trim());
   const mask=n=>valoresVisiveis?fmtBRL(n):'R$ ••••';
-  $('#finEyeBtn').innerHTML=`<button class="eyebtn" onclick="toggleValoresVisiveis()">${valoresVisiveis?'🙈 Ocultar valores':'👁️ Mostrar valores'}</button>`;
+  $('#finEyeBtnTop').innerHTML=`<button class="eyebtn" onclick="toggleValoresVisiveis()">${valoresVisiveis?'🙈 Ocultar valores':'👁️ Mostrar valores'}</button>`;
   $('#finUndoBtn').innerHTML=finUndoStack.length?`<button class="eyebtn" onclick="desfazerFinanceiro()">↩️ Desfazer última ação (${finUndoStack.length})</button>`:'';
 
   const bancoMap={};
@@ -842,25 +843,32 @@ function renderFin(){
       const pm=periodTotais(FopVisivel,ms,me,null);
       return `<div class="finperiod-row"><span>${nome}</span><span class="fp-in">${mask(pm.ent)}</span><span class="fp-out">${mask(pm.sai)}</span><span>${mask(pm.ent-pm.sai)}</span></div>`;
     }).join('');
-  const totalEntradas=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
-  const totalSaidas=saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
-  const saldo=totalEntradas-totalSaidas+saldoInicialOperacional;
+  const monthKeys=[...new Set(F.filter(f=>f.vencimento).map(f=>f.vencimento.slice(0,7)))].sort().reverse();
+  const noMesFiltro=f=>finFilter==='all'?true:finFilter==='sem'?!f.vencimento:(f.vencimento&&f.vencimento.slice(0,7)===finFilter);
+  const entradasMes=entradas.filter(noMesFiltro);
+  const saidasMes=saidas.filter(noMesFiltro);
+  const totalEntradas=entradasMes.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const totalSaidas=saidasMes.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const saldo=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0)-saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0)+saldoInicialOperacional;
   const reservaEntradas=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&!naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const reservaSaidas=saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&!naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const reservaTotal=saldoInicialReserva+reservaEntradas-reservaSaidas;
-  const aReceber=entradas.filter(f=>finStatus(f)!=='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
-  const aPagar=saidas.filter(f=>finStatus(f)!=='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const aReceber=entradasMes.filter(f=>finStatus(f)!=='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const aPagar=saidasMes.filter(f=>finStatus(f)!=='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const statsMesSel=`<select onchange="setFinFilter(this.value)" style="font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:4px 8px;background:var(--card);margin-bottom:8px">
+    <option value="all" ${finFilter==='all'?'selected':''}>Todos os períodos</option>
+    ${monthKeys.map(k=>{const[yy,mm]=k.split('-');return `<option value="${k}" ${finFilter===k?'selected':''}>${MESES_ABR[parseInt(mm)-1]}/${yy}</option>`}).join('')}
+  </select>`;
   $('#finStats').innerHTML=`
-    <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas (pago)</div><div class="num">${mask(totalEntradas)}</div><div class="delta">${entradas.length} lançamento(s)</div></div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas (pago)</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidas.length} lançamento(s)</div></div>
+    <div class="stat" style="grid-column:1/-1;padding:0;background:none;box-shadow:none;border:none">${statsMesSel}</div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas</div><div class="num">${mask(totalEntradas)}</div><div class="delta">${entradasMes.length} lançamento(s)</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidasMes.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial de cada conta + movimentações depois disso':'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
     ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const finDate=f=>f.dataPagamento||f.vencimento||'';
   const sorted=F.slice().sort((a,b)=>finDate(b).localeCompare(finDate(a)));
-  const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const monthKeys=[...new Set(F.filter(f=>f.vencimento).map(f=>f.vencimento.slice(0,7)))].sort().reverse();
   if(finFilter!=='all'&&finFilter!=='sem'&&!monthKeys.includes(finFilter))finFilter='all';
   const semData=F.some(f=>!f.vencimento);
   const tabsHtml=`<div class="fintabs">
@@ -887,14 +895,15 @@ function renderFin(){
   const filtSaidas=filtered.filter(f=>f.tipo==='saida');
   const filtResgates=filtered.filter(f=>f.tipo==='saida'&&f.banco&&isReserva(f.banco.trim()));
   const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},resgate:{lab:'💸 Resgates',itens:filtResgates,vazio:'Nenhum resgate de reserva neste período.'},pendente:{lab:'⏳ Pendentes',itens:filtPendentes,vazio:'Nenhum pendente neste período.'}};
-  if(!grupos[finGroupFilter])finGroupFilter='entrada';
+  if(!grupos[finGroupFilter])finGroupFilter='saida';
   const ordenarLista=lista=>{
-    const arr=lista.slice();
-    if(finSort==='data_asc')return arr.sort((a,b)=>finDate(a).localeCompare(finDate(b)));
-    if(finSort==='valor_desc')return arr.sort((a,b)=>finLiquido(b)-finLiquido(a));
-    if(finSort==='valor_asc')return arr.sort((a,b)=>finLiquido(a)-finLiquido(b));
-    if(finSort==='conta')return arr.sort((a,b)=>(a.banco||'').localeCompare(b.banco||'')||finDate(b).localeCompare(finDate(a)));
-    return arr.sort((a,b)=>finDate(b).localeCompare(finDate(a)));
+    const arr=lista.map((f,i)=>({f,i}));
+    if(finSort==='data_asc')arr.sort((a,b)=>finDate(a.f).localeCompare(finDate(b.f))||a.i-b.i);
+    else if(finSort==='valor_desc')arr.sort((a,b)=>finLiquido(b.f)-finLiquido(a.f));
+    else if(finSort==='valor_asc')arr.sort((a,b)=>finLiquido(a.f)-finLiquido(b.f));
+    else if(finSort==='conta')arr.sort((a,b)=>(a.f.banco||'').localeCompare(b.f.banco||'')||finDate(b.f).localeCompare(finDate(a.f))||b.i-a.i);
+    else arr.sort((a,b)=>finDate(b.f).localeCompare(finDate(a.f))||b.i-a.i);
+    return arr.map(x=>x.f);
   };
   const SORT_OPTS={data_desc:'Data (mais recente)',data_asc:'Data (mais antiga)',valor_desc:'Maior valor',valor_asc:'Menor valor',conta:'Conta'};
   const groupTabsHtml=`<div class="fintabs" style="justify-content:space-between">
@@ -909,7 +918,7 @@ function renderFin(){
 }
 let finFilter='all';
 function setFinFilter(k){finFilter=k;renderFin()}
-let finGroupFilter='entrada';
+let finGroupFilter='saida';
 function setFinGroupFilter(k){finGroupFilter=k;renderFin()}
 let finSort='data_desc';
 function setFinSort(v){finSort=v;renderFin()}
@@ -948,6 +957,7 @@ function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').for
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
   const btn=$('#addBtn');btn.style.display='flex';btn.textContent=ADD_ACTIONS[v][0];btn.setAttribute('onclick',ADD_ACTIONS[v][1]);
+  $('#finEyeBtnTop').style.display=v==='fin'?'':'none';
   if(v==='dash'||v==='fin')resizeCharts();
 }
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)});
