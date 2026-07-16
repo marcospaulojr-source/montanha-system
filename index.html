@@ -1836,6 +1836,24 @@ async function boot(){
   render();
   atualizarLabelPastaBackup();
   maybeAutoBackup();
+  setupRealtime();
+}
+let realtimeChannel=null;
+let realtimeRefreshTimer=null;
+function scheduleRealtimeRefresh(){
+  clearTimeout(realtimeRefreshTimer);
+  realtimeRefreshTimer=setTimeout(async()=>{
+    await fetchAll();
+    render();
+  },400);
+}
+function setupRealtime(){
+  if(realtimeChannel)return;
+  const tables=['financeiro','videos','clients','saldos_iniciais','propostas','app_config'];
+  let ch=sb.channel('montanha-realtime');
+  tables.forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},()=>scheduleRealtimeRefresh())});
+  ch.subscribe();
+  realtimeChannel=ch;
 }
 function toggleLoginPass(){const i=$('#loginPass');i.type=i.type==='password'?'text':'password'}
 async function forgotPassword(){
