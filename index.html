@@ -396,6 +396,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.s
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)}));
 const todayISO=()=>new Date().toISOString().slice(0,10);
+const amanhaISO=()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)};
 const nowHora=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 
 // ---- pequena preferência local (só qual cliente estava selecionado, não é dado real) ----
@@ -1645,10 +1646,10 @@ function openAjustarSaldo(bancoPreSelecionado){
   const siExistente=(store.saldosIniciais||[]).find(si=>si.banco===bancoInicial);
   openModal(`<div class="mtop"><h3>Ajustar saldo de uma conta</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty" style="margin-bottom:12px">Corrige o saldo de UMA conta só, sem mexer nas outras. Lançamentos com data anterior à data abaixo viram histórico e não mexem no saldo; a partir dessa data somam em cima do valor informado.</div>
+      <div class="hist-empty" style="margin-bottom:12px">Digite o saldo que está APARECENDO NO BANCO agora. Lançamentos de hoje pra trás viram histórico e não mexem nesse valor; só lançamentos a partir da data abaixo (por padrão, amanhã) somam em cima. Se mudar a data pra hoje ou antes, lançamentos já registrados nesse período voltam a ser somados de novo.</div>
       <div class="fld"><label>Banco/Conta</label><select id="aj_banco" onchange="ajBancoChanged(this.value)">${bancoOptions(bancoInicial)}</select></div>
       <div class="fld"><label>Saldo disponível (R$)</label><input type="number" step="0.01" id="aj_valor" value="${siExistente?siExistente.valor:''}" autofocus></div>
-      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="aj_data" value="${siExistente?siExistente.data:todayISO()}"></div>
+      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="aj_data" value="${amanhaISO()}"></div>
       <button class="msave" onclick="saveAjusteSaldo()">Salvar saldo desta conta</button>
     </div>`);
   setTimeout(()=>{const v=$('#aj_valor');if(v){v.focus();v.select()}},50);
@@ -1656,7 +1657,7 @@ function openAjustarSaldo(bancoPreSelecionado){
 function ajBancoChanged(banco){
   const si=(store.saldosIniciais||[]).find(x=>x.banco===banco);
   $('#aj_valor').value=si?si.valor:'';
-  $('#aj_data').value=si?si.data:todayISO();
+  $('#aj_data').value=amanhaISO();
 }
 let savingAjusteSaldo=false;
 async function saveAjusteSaldo(){
