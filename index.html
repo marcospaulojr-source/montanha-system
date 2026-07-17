@@ -863,8 +863,8 @@ function renderFin(){
   const noMesFiltro=f=>finFilter==='all'?true:finFilter==='sem'?!f.vencimento:(f.vencimento&&f.vencimento.slice(0,7)===finFilter);
   const entradasMes=entradas.filter(noMesFiltro);
   const saidasMes=saidas.filter(noMesFiltro);
-  const totalEntradas=entradasMes.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
-  const totalSaidas=saidasMes.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const totalEntradas=entradasMes.filter(f=>finStatus(f)==='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const totalSaidas=saidasMes.filter(f=>finStatus(f)==='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const saldo=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0)-saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0)+saldoInicialOperacional;
   const reservaEntradas=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&!naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const reservaSaidas=saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&!naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
