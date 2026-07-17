@@ -337,8 +337,8 @@ button{font-family:inherit}
       <div class="panel" style="margin-bottom:20px"><h2>📈 Evolução financeira</h2>
         <div class="chartgrid">
           <div class="chartbox"><h4>Entradas vs. saídas por mês</h4><div class="cv-wrap"><canvas id="chartFinMes"></canvas></div></div>
-          <div class="chartbox"><h4>Resultado por mês</h4><div class="cv-wrap"><canvas id="chartFinSaldo"></canvas></div></div>
           <div class="chartbox"><h4>Receita por cliente</h4><div class="cv-wrap"><canvas id="chartFinCliente"></canvas></div></div>
+          <div class="chartbox"><h4>🔒 Entrada/saída por conta de reserva</h4><div class="cv-wrap"><canvas id="chartFinReserva"></canvas></div></div>
         </div>
       </div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
@@ -771,13 +771,23 @@ function finPorCliente(F){
   });
   return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
 }
-function renderFinCharts(FopTodos){
+function finPorContaReserva(F){
+  const map={};
+  F.filter(f=>f.status==='pago'&&f.banco&&f.banco.trim()).forEach(f=>{
+    const nome=f.banco.trim();
+    if(!map[nome])map[nome]={ent:0,sai:0};
+    if(f.tipo==='entrada')map[nome].ent+=finLiquido(f);else map[nome].sai+=finLiquido(f);
+  });
+  return Object.entries(map).sort((a,b)=>(b[1].ent+b[1].sai)-(a[1].ent+a[1].sai));
+}
+function renderFinCharts(FopTodos,FresTodos){
   const th=chartTheme();
   const serieBarras=finMonthlySeries(FopTodos,null,0);
   drawChart('chartFinMes',{type:'bar',data:{labels:serieBarras.map(s=>s.label),datasets:[{label:'Entrou',data:serieBarras.map(s=>s.ent),backgroundColor:th.green},{label:'Saiu',data:serieBarras.map(s=>s.sai),backgroundColor:th.red}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
-  drawChart('chartFinSaldo',{type:'bar',data:{labels:serieBarras.map(s=>s.label),datasets:[{label:'Resultado',data:serieBarras.map(s=>s.ent-s.sai),backgroundColor:serieBarras.map(s=>s.ent-s.sai>=0?th.green:th.red)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
   const porCliente=finPorCliente(FopTodos);
   drawChart('chartFinCliente',{type:'bar',data:{labels:porCliente.map(([nome])=>nome),datasets:[{data:porCliente.map(([,v])=>v),backgroundColor:th.blue}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtBRL(c.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
+  const porContaReserva=finPorContaReserva(FresTodos);
+  drawChart('chartFinReserva',{type:'bar',data:{labels:porContaReserva.map(([nome])=>nome),datasets:[{label:'Entrou',data:porContaReserva.map(([,v])=>v.ent),backgroundColor:th.green},{label:'Saiu',data:porContaReserva.map(([,v])=>v.sai),backgroundColor:th.red}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
 }
 function renderFin(){
   const F=store.financeiro||[];
@@ -817,8 +827,9 @@ function renderFin(){
   const saldoInicialOperacional=saldosIniciais.filter(si=>!isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
+  const Fres=F.filter(f=>!naoReserva(f));
   const FopVisivel=Fop.filter(contaAposCutoff);
-  renderFinCharts(Fop);
+  renderFinCharts(Fop,Fres);
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
