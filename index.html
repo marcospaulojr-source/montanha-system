@@ -76,7 +76,7 @@ button{font-family:inherit}
 .eyebtn:hover{background:#F8FAFC}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 19px;box-shadow:var(--sh)}
 .stat .lab{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:7px}
-.stat .num{font-size:29px;font-weight:800;margin-top:7px;letter-spacing:-.02em}
+.stat .num{font-size:25px;font-weight:800;margin-top:7px;letter-spacing:-.02em;overflow-wrap:anywhere}
 .stat .delta{font-size:12px;font-weight:600;margin-top:2px;color:var(--muted)}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
@@ -865,7 +865,7 @@ function renderFin(){
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidasMes.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial de cada conta + movimentações depois disso':'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
-    ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
+    ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num" style="font-size:22px">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const finDate=f=>f.dataPagamento||f.vencimento||'';
   const sorted=F.slice().sort((a,b)=>finDate(b).localeCompare(finDate(a)));
