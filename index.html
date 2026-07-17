@@ -879,7 +879,7 @@ function renderFin(){
   </select>`;
   $('#finStats').innerHTML=`
     <div class="stat" style="grid-column:1/-1;padding:0;background:none;box-shadow:none;border:none">${statsMesSel}</div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:${totalGeralContas>=0?'var(--green)':'#E11D48'}"></span>Saldo total</div><div class="num">${mask(totalGeralContas)}</div><div class="delta">todas as contas, incluindo reserva</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:${totalGeralContas>=0?'var(--green)':'#E11D48'}"></span>Saldo total</div><div class="num" style="font-size:22px">${mask(totalGeralContas)}</div><div class="delta">todas as contas, incluindo reserva</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas</div><div class="num">${mask(totalEntradas)}</div><div class="delta">${entradasMes.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidasMes.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
