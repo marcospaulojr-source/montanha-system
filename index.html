@@ -827,7 +827,6 @@ function renderFin(){
     ${bancosNormais.map(bancoRow).join('')}
     ${bancosReserva.length?`<div class="finbank-section">🔒 Reserva (fora do saldo principal)</div>${bancosReserva.map(bancoRow).join('')}`:''}
   `:'<div class="empty">Nenhum saldo definido ainda — clique em "Definir saldo inicial".</div>';
-  const saldoInicialOperacional=saldosIniciais.filter(si=>!isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
   const Fres=F.filter(f=>!naoReserva(f));
@@ -865,7 +864,6 @@ function renderFin(){
   const saidasMes=saidas.filter(noMesFiltro);
   const totalEntradas=entradasMes.filter(f=>finStatus(f)==='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const totalSaidas=saidasMes.filter(f=>finStatus(f)==='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
-  const saldo=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0)-saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0)+saldoInicialOperacional;
   const reservaEntradas=entradas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&!naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const reservaSaidas=saidas.filter(f=>finStatus(f)==='pago'&&contaAposCutoff(f)&&!naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const reservaTotal=saldoInicialReserva+reservaEntradas-reservaSaidas;
@@ -880,7 +878,6 @@ function renderFin(){
     <div class="stat" style="grid-column:1/-1;padding:0;background:none;box-shadow:none;border:none">${statsMesSel}</div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--green)"></span>Entradas</div><div class="num">${mask(totalEntradas)}</div><div class="delta">${entradasMes.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidasMes.length} lançamento(s)</div></div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial de cada conta + movimentações depois disso':'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#78716C"></span>🧾 Impostos</div><div class="num" style="font-size:22px">${mask(impostosMes)}</div><div class="delta">saídas marcadas como imposto</div></div>
     ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num" style="font-size:22px">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
