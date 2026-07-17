@@ -337,7 +337,7 @@ button{font-family:inherit}
       <div class="panel" style="margin-bottom:20px"><h2>📈 Evolução financeira</h2>
         <div class="chartgrid">
           <div class="chartbox"><h4>Entradas vs. saídas por mês</h4><div class="cv-wrap"><canvas id="chartFinMes"></canvas></div></div>
-          <div class="chartbox"><h4>Saldo acumulado</h4><div class="cv-wrap"><canvas id="chartFinSaldo"></canvas></div></div>
+          <div class="chartbox"><h4>Resultado por mês</h4><div class="cv-wrap"><canvas id="chartFinSaldo"></canvas></div></div>
           <div class="chartbox"><h4>Receita por cliente</h4><div class="cv-wrap"><canvas id="chartFinCliente"></canvas></div></div>
         </div>
       </div>
@@ -771,12 +771,11 @@ function finPorCliente(F){
   });
   return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
 }
-function renderFinCharts(FopTodos,FopVisivel,saldoInicialOperacional){
+function renderFinCharts(FopTodos){
   const th=chartTheme();
   const serieBarras=finMonthlySeries(FopTodos,null,0);
-  const serieSaldo=finMonthlySeries(FopVisivel,null,saldoInicialOperacional);
   drawChart('chartFinMes',{type:'bar',data:{labels:serieBarras.map(s=>s.label),datasets:[{label:'Entrou',data:serieBarras.map(s=>s.ent),backgroundColor:th.green},{label:'Saiu',data:serieBarras.map(s=>s.sai),backgroundColor:th.red}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
-  drawChart('chartFinSaldo',{type:'line',data:{labels:serieSaldo.map(s=>s.label),datasets:[{label:'Saldo acumulado',data:serieSaldo.map(s=>s.saldo),borderColor:th.accent,backgroundColor:th.accent+'33',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
+  drawChart('chartFinSaldo',{type:'bar',data:{labels:serieBarras.map(s=>s.label),datasets:[{label:'Resultado',data:serieBarras.map(s=>s.ent-s.sai),backgroundColor:serieBarras.map(s=>s.ent-s.sai>=0?th.green:th.red)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
   const porCliente=finPorCliente(FopTodos);
   drawChart('chartFinCliente',{type:'bar',data:{labels:porCliente.map(([nome])=>nome),datasets:[{data:porCliente.map(([,v])=>v),backgroundColor:th.blue}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtBRL(c.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
 }
@@ -819,7 +818,7 @@ function renderFin(){
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
   const FopVisivel=Fop.filter(contaAposCutoff);
-  renderFinCharts(Fop,FopVisivel,saldoInicialOperacional);
+  renderFinCharts(Fop);
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
