@@ -1667,20 +1667,21 @@ async function saveAjusteSaldo(){
   const data=$('#aj_data').value||todayISO();
   if(!banco){toast('Selecione uma conta');return}
   savingAjusteSaldo=true;
-  const btn=document.querySelector('#modal .msave');
-  if(btn){btn.textContent='Salvando...';btn.disabled=true}
+  store.saldosIniciais=(store.saldosIniciais||[]).filter(si=>si.banco!==banco);
+  store.saldosIniciais.push({id:uid(),banco,valor,data});
+  closeM();render();toast('Saldo de '+banco+' atualizado ✓');
   try{
     const{data:existing,error:selErr}=await sb.from('saldos_iniciais').select('id').eq('banco',banco);
-    if(selErr){toast('⚠️ Erro ao ler saldo atual: '+selErr.message);return}
+    if(selErr){toast('⚠️ Erro ao sincronizar: '+selErr.message);return}
     const existingIds=(existing||[]).map(r=>r.id);
     if(existingIds.length){
       const{error}=await sb.from('saldos_iniciais').delete().in('id',existingIds);
-      if(error){toast('⚠️ Erro ao limpar saldo anterior: '+error.message);return}
+      if(error){toast('⚠️ Erro ao sincronizar: '+error.message);return}
     }
     const{error}=await sb.from('saldos_iniciais').insert({banco,valor,data});
-    if(error){toast('⚠️ Erro ao salvar: '+error.message);return}
+    if(error){toast('⚠️ Erro ao sincronizar: '+error.message);return}
     await fetchAll();
-    closeM();render();toast('Saldo de '+banco+' atualizado ✓');
+    render();
   }finally{
     savingAjusteSaldo=false;
   }
