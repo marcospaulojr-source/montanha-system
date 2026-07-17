@@ -339,6 +339,7 @@ button{font-family:inherit}
           <div class="chartbox"><h4>Entradas vs. saídas por mês</h4><div class="cv-wrap"><canvas id="chartFinMes"></canvas></div></div>
           <div class="chartbox"><h4>Receita por cliente</h4><div class="cv-wrap"><canvas id="chartFinCliente"></canvas></div></div>
           <div class="chartbox"><h4>🔒 Entrada/saída por conta de reserva</h4><div class="cv-wrap"><canvas id="chartFinReserva"></canvas></div></div>
+          <div class="chartbox"><h4>🧾 Impostos por mês</h4><div class="cv-wrap"><canvas id="chartFinImpostos"></canvas></div></div>
         </div>
       </div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
@@ -430,10 +431,10 @@ function videoToDb(v,clientId){
   return {id:v.id,client_id:clientId,cliente:v.cliente||'',titulo:v.titulo||'',objetivo:v.objetivo,estagio:v.estagio,inicio:v.inicio||null,entrega:v.entrega||null,roteiro:v.roteiro||'',mods:v.mods||'',enviado:!!v.enviado,data_envio:v.dataEnvio||null,gcal_event_id:v.gcalEventId||null,editor:v.editor||'',descricao_servico:v.descricaoServico||'',historico:v.historico||[]};
 }
 function dbToFin(row){
-  return {id:row.id,tipo:row.tipo,descricao:row.descricao||'',cliente:row.cliente||'',valor:Number(row.valor)||0,desconto:Number(row.desconto)||0,formaPagamento:row.forma_pagamento,banco:row.banco||'',vencimento:row.vencimento||'',status:row.status,dataPagamento:row.data_pagamento||'',hora:row.hora||''};
+  return {id:row.id,tipo:row.tipo,descricao:row.descricao||'',cliente:row.cliente||'',valor:Number(row.valor)||0,desconto:Number(row.desconto)||0,formaPagamento:row.forma_pagamento,banco:row.banco||'',vencimento:row.vencimento||'',status:row.status,dataPagamento:row.data_pagamento||'',hora:row.hora||'',categoria:row.categoria||''};
 }
 function finToDb(f){
-  return {id:f.id,tipo:f.tipo,descricao:f.descricao||'',cliente:f.cliente||'',valor:f.valor||0,desconto:f.desconto||0,forma_pagamento:f.formaPagamento,banco:f.banco||'',vencimento:f.vencimento||null,status:f.status,data_pagamento:f.dataPagamento||null,hora:f.hora||null};
+  return {id:f.id,tipo:f.tipo,descricao:f.descricao||'',cliente:f.cliente||'',valor:f.valor||0,desconto:f.desconto||0,forma_pagamento:f.formaPagamento,banco:f.banco||'',vencimento:f.vencimento||null,status:f.status,data_pagamento:f.dataPagamento||null,hora:f.hora||null,categoria:f.categoria||null};
 }
 function finLiquido(f){return(f.valor||0)-(f.desconto||0)}
 function dbToProp(row){
@@ -788,6 +789,8 @@ function renderFinCharts(FopTodos,FresTodos){
   drawChart('chartFinCliente',{type:'bar',data:{labels:porCliente.map(([nome])=>nome),datasets:[{data:porCliente.map(([,v])=>v),backgroundColor:th.blue}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtBRL(c.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
   const porContaReserva=finPorContaReserva(FresTodos);
   drawChart('chartFinReserva',{type:'bar',data:{labels:porContaReserva.map(([nome])=>nome),datasets:[{label:'Entrou',data:porContaReserva.map(([,v])=>v.ent),backgroundColor:th.green},{label:'Saiu',data:porContaReserva.map(([,v])=>v.sai),backgroundColor:th.red}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
+  const serieImpostos=finMonthlySeries(FopTodos.filter(f=>f.categoria==='imposto'),null,0);
+  drawChart('chartFinImpostos',{type:'bar',data:{labels:serieImpostos.map(s=>s.label),datasets:[{label:'Imposto',data:serieImpostos.map(s=>s.sai),backgroundColor:'#78716C'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
 }
 function renderFin(){
   const F=store.financeiro||[];
@@ -868,6 +871,7 @@ function renderFin(){
   const reservaTotal=saldoInicialReserva+reservaEntradas-reservaSaidas;
   const aReceber=entradasMes.filter(f=>finStatus(f)!=='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
   const aPagar=saidasMes.filter(f=>finStatus(f)!=='pago'&&naoReserva(f)).reduce((s,f)=>s+finLiquido(f),0);
+  const impostosMes=saidasMes.filter(f=>f.categoria==='imposto'&&finStatus(f)==='pago').reduce((s,f)=>s+finLiquido(f),0);
   const statsMesSel=`<select onchange="setFinFilter(this.value)" style="font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:4px 8px;background:var(--card);margin-bottom:8px">
     <option value="all" ${finFilter==='all'?'selected':''}>Todos os períodos</option>
     ${monthKeys.map(k=>{const[yy,mm]=k.split('-');return `<option value="${k}" ${finFilter===k?'selected':''}>${MESES_ABR[parseInt(mm)-1]}/${yy}</option>`}).join('')}
@@ -878,6 +882,7 @@ function renderFin(){
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Saídas</div><div class="num">${mask(totalSaidas)}</div><div class="delta">${saidasMes.length} lançamento(s)</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:${saldo>=0?'var(--green)':'#E11D48'}"></span>Saldo</div><div class="num">${mask(saldo)}</div><div class="delta">${saldoInicialOperacional||saldoInicialReserva?'saldo inicial de cada conta + movimentações depois disso':'entradas − saídas (pagas)'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--amber)"></span>A receber / A pagar</div><div class="num" style="font-size:17px">${mask(aReceber)} / ${mask(aPagar)}</div><div class="delta">pendente ou atrasado</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:#78716C"></span>🧾 Impostos</div><div class="num" style="font-size:22px">${mask(impostosMes)}</div><div class="delta">saídas marcadas como imposto</div></div>
     ${RESERVE_BANCOS.length?`<div class="stat"><div class="lab"><span class="dot" style="background:#7C3AED"></span>🔒 Reserva</div><div class="num" style="font-size:22px">${mask(reservaTotal)}</div><div class="delta">fora do saldo principal</div></div>`:''}`;
   $('#finTag').textContent=F.length+' lançamento(s)';
   const finDate=f=>f.dataPagamento||f.vencimento||'';
@@ -1068,7 +1073,7 @@ function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O 
 function addFinanceiro(){
   snapshotFinanceiro();
   const bancoPadrao=BANCOS.includes('Nubank PF')?'Nubank PF':(BANCOS[0]||'');
-  const f={id:uid(),tipo:'saida',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:'pago',dataPagamento:todayISO(),hora:nowHora()};
+  const f={id:uid(),tipo:'saida',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:'pago',dataPagamento:todayISO(),hora:nowHora(),categoria:''};
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
   sb.from('financeiro').insert(finToDb(f)).then(sbErr);
@@ -1093,6 +1098,7 @@ function openFin(id,isNew){
         <div class="fld"><label>Hora (opcional)</label><input type="time" id="f_hora" value="${esc(f.hora||'')}"></div>
       </div>
       <div class="fld"><label>Status</label><select id="f_status"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (a receber/pagar)</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
+      <div class="fld"><label>Categoria (opcional)</label><select id="f_categoria"><option value="" ${!f.categoria?'selected':''}>Nenhuma</option><option value="imposto" ${f.categoria==='imposto'?'selected':''}>🧾 Imposto</option></select></div>
       <button class="msave" onclick="saveFin('${id}',${isNew?'true':'false'})">Salvar lançamento</button>
       <button class="mdel" onclick="delFin('${id}')">Excluir</button>
     </div>`);
@@ -1112,6 +1118,7 @@ function saveFin(id,isNew){
   f.hora=$('#f_hora')?$('#f_hora').value||'':'';
   f.status=$('#f_status').value;
   f.dataPagamento=f.status==='pago'?(f.vencimento||todayISO()):'';
+  f.categoria=$('#f_categoria')?$('#f_categoria').value:'';
   closeM();render();toast('Lançamento salvo ✓');
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
