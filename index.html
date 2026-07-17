@@ -823,8 +823,10 @@ function renderFin(){
     </div>`;
   const bancosNormais=Object.entries(bancoMap).filter(([nome])=>!isReserva(nome)).sort((a,b)=>b[1]-a[1]);
   const bancosReserva=Object.entries(bancoMap).filter(([nome])=>isReserva(nome)).sort((a,b)=>b[1]-a[1]);
+  const totalBancosNormais=bancosNormais.reduce((s,[,v])=>s+v,0);
   $('#finBancos').innerHTML=(bancosNormais.length||bancosReserva.length)?`
     ${bancosNormais.map(bancoRow).join('')}
+    ${bancosNormais.length?`<div class="finbank-row" style="font-weight:800;border-top:2px solid var(--line);margin-top:4px;padding-top:10px"><span>Total</span><span style="color:${totalBancosNormais>=0?'var(--green)':'#E11D48'}">${mask(totalBancosNormais)}</span></div>`:''}
     ${bancosReserva.length?`<div class="finbank-section">🔒 Reserva (fora do saldo principal)</div>${bancosReserva.map(bancoRow).join('')}`:''}
   `:'<div class="empty">Nenhum saldo definido ainda — clique em "Definir saldo inicial".</div>';
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
