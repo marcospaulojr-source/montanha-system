@@ -771,12 +771,13 @@ function finPorCliente(F){
   });
   return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
 }
-function renderFinCharts(Fop,cutoff,saldoInicialOperacional){
+function renderFinCharts(FopTodos,FopVisivel,saldoInicialOperacional){
   const th=chartTheme();
-  const serie=finMonthlySeries(Fop,cutoff,saldoInicialOperacional);
-  drawChart('chartFinMes',{type:'bar',data:{labels:serie.map(s=>s.label),datasets:[{label:'Entrou',data:serie.map(s=>s.ent),backgroundColor:th.green},{label:'Saiu',data:serie.map(s=>s.sai),backgroundColor:th.red}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
-  drawChart('chartFinSaldo',{type:'line',data:{labels:serie.map(s=>s.label),datasets:[{label:'Saldo acumulado',data:serie.map(s=>s.saldo),borderColor:th.accent,backgroundColor:th.accent+'33',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
-  const porCliente=finPorCliente(Fop);
+  const serieBarras=finMonthlySeries(FopTodos,null,0);
+  const serieSaldo=finMonthlySeries(FopVisivel,null,saldoInicialOperacional);
+  drawChart('chartFinMes',{type:'bar',data:{labels:serieBarras.map(s=>s.label),datasets:[{label:'Entrou',data:serieBarras.map(s=>s.ent),backgroundColor:th.green},{label:'Saiu',data:serieBarras.map(s=>s.sai),backgroundColor:th.red}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
+  drawChart('chartFinSaldo',{type:'line',data:{labels:serieSaldo.map(s=>s.label),datasets:[{label:'Saldo acumulado',data:serieSaldo.map(s=>s.saldo),borderColor:th.accent,backgroundColor:th.accent+'33',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:th.text},grid:{display:false}},y:{ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}}}}});
+  const porCliente=finPorCliente(FopTodos);
   drawChart('chartFinCliente',{type:'bar',data:{labels:porCliente.map(([nome])=>nome),datasets:[{data:porCliente.map(([,v])=>v),backgroundColor:th.blue}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtBRL(c.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{color:th.text,callback:v=>fmtBRL(v)},grid:{color:th.grid}},y:{ticks:{color:th.text},grid:{display:false}}}}});
 }
 function renderFin(){
@@ -818,7 +819,7 @@ function renderFin(){
   const saldoInicialReserva=saldosIniciais.filter(si=>isReserva(si.banco)).reduce((s,si)=>s+si.valor,0);
   const Fop=F.filter(naoReserva);
   const FopVisivel=Fop.filter(contaAposCutoff);
-  renderFinCharts(FopVisivel,null,saldoInicialOperacional);
+  renderFinCharts(Fop,FopVisivel,saldoInicialOperacional);
   const hoje=new Date();
   const wkStartD=new Date(hoje);wkStartD.setDate(hoje.getDate()-hoje.getDay());
   const weekStart=wkStartD.toISOString().slice(0,10);
@@ -828,9 +829,9 @@ function renderFin(){
   const monthStart=`${y}-${String(m+1).padStart(2,'0')}-01`;
   const monthEnd=new Date(y,m+1,0).toISOString().slice(0,10);
   const yearStart=`${y}-01-01`,yearEnd=`${y}-12-31`;
-  const semana=periodTotais(FopVisivel,weekStart,weekEnd,null);
-  const mes=periodTotais(FopVisivel,monthStart,monthEnd,null);
-  const ano=periodTotais(FopVisivel,yearStart,yearEnd,null);
+  const semana=periodTotais(Fop,weekStart,weekEnd,null);
+  const mes=periodTotais(Fop,monthStart,monthEnd,null);
+  const ano=periodTotais(Fop,yearStart,yearEnd,null);
   $('#finPeriodo').innerHTML=`
     <div class="finperiod-row finperiod-head"><span>Período</span><span>Entrou</span><span>Saiu</span><span>Saldo</span></div>
     <div class="finperiod-row"><span>Esta semana</span><span class="fp-in">${mask(semana.ent)}</span><span class="fp-out">${mask(semana.sai)}</span><span>${mask(semana.ent-semana.sai)}</span></div>
@@ -842,7 +843,7 @@ function renderFin(){
     MESES.map((nome,i)=>{
       const ms=`${y}-${String(i+1).padStart(2,'0')}-01`;
       const me=new Date(y,i+1,0).toISOString().slice(0,10);
-      const pm=periodTotais(FopVisivel,ms,me,null);
+      const pm=periodTotais(Fop,ms,me,null);
       return `<div class="finperiod-row"><span>${nome}</span><span class="fp-in">${mask(pm.ent)}</span><span class="fp-out">${mask(pm.sai)}</span><span>${mask(pm.ent-pm.sai)}</span></div>`;
     }).join('');
   const monthKeys=[...new Set(F.filter(f=>f.vencimento).map(f=>f.vencimento.slice(0,7)))].sort().reverse();
