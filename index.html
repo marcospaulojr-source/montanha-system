@@ -1102,13 +1102,16 @@ function openFin(id,isNew){
         <div class="fld"><label id="f_venc_lbl">Data de ${f.tipo==='saida'?'saída':'entrada'} do dinheiro</label><input type="date" id="f_venc" value="${f.vencimento||''}"></div>
         <div class="fld"><label>Hora (opcional)</label><input type="time" id="f_hora" value="${esc(f.hora||'')}"></div>
       </div>
-      <div class="fld"><label>Status</label><select id="f_status"><option value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (a receber/pagar)</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
+      <div class="fld"><label>Status</label><select id="f_status"><option id="f_status_pendente" value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (${f.tipo==='saida'?'a pagar':'a receber'})</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
       <div class="fld"><label>Categoria (opcional)</label><select id="f_categoria"><option value="" ${!f.categoria?'selected':''}>Nenhuma</option><option value="imposto" ${f.categoria==='imposto'?'selected':''}>🧾 Imposto</option></select></div>
       <button class="msave" onclick="saveFin('${id}',${isNew?'true':'false'})">Salvar lançamento</button>
       <button class="mdel" onclick="delFin('${id}')">Excluir</button>
     </div>`);
 }
-function toggleVencLabel(tipo){const l=$('#f_venc_lbl');if(l)l.textContent='Data de '+(tipo==='saida'?'saída':'entrada')+' do dinheiro'}
+function toggleVencLabel(tipo){
+  const l=$('#f_venc_lbl');if(l)l.textContent='Data de '+(tipo==='saida'?'saída':'entrada')+' do dinheiro';
+  const p=$('#f_status_pendente');if(p)p.textContent='Pendente ('+(tipo==='saida'?'a pagar':'a receber')+')';
+}
 function saveFin(id,isNew){
   if(!isNew)snapshotFinanceiro();
   const f=store.financeiro.find(x=>x.id===id);
