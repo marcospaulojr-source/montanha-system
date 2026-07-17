@@ -396,7 +396,6 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.s
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)}));
 const todayISO=()=>new Date().toISOString().slice(0,10);
-const amanhaISO=()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)};
 const nowHora=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 
 // ---- pequena preferência local (só qual cliente estava selecionado, não é dado real) ----
@@ -464,7 +463,7 @@ async function fetchAll(){
     current,
     gcalClientId:(cfgRows&&cfgRows[0]&&cfgRows[0].gcal_client_id)||'',
     financeiro:(finRows||[]).map(dbToFin),
-    saldosIniciais:(siRows||[]).map(row=>({id:row.id,banco:row.banco,valor:Number(row.valor)||0,data:row.data})),
+    saldosIniciais:(siRows||[]).map(row=>({id:row.id,banco:row.banco,valor:Number(row.valor)||0,data:row.data,hora:row.hora||''})),
     propostas:(propRows||[]).map(dbToProp)
   };
 }
@@ -785,12 +784,14 @@ function renderFin(){
   const entradas=F.filter(f=>f.tipo==='entrada');
   const saidas=F.filter(f=>f.tipo==='saida');
   const saldosIniciais=store.saldosIniciais||[];
+  const cutoffDT=si=>(si.data||'')+'T'+(si.hora||'00:00');
   const cutoffPorConta={};
   saldosIniciais.forEach(si=>{
     if(!si.banco)return;
-    if(!cutoffPorConta[si.banco]||si.data>cutoffPorConta[si.banco])cutoffPorConta[si.banco]=si.data;
+    const dt=cutoffDT(si);
+    if(!cutoffPorConta[si.banco]||dt>cutoffPorConta[si.banco])cutoffPorConta[si.banco]=dt;
   });
-  const contaAposCutoff=f=>{const c=f.banco&&cutoffPorConta[f.banco.trim()];return !c||(f.dataPagamento&&f.dataPagamento>=c)};
+  const contaAposCutoff=f=>{const c=f.banco&&cutoffPorConta[f.banco.trim()];if(!c)return true;if(!f.dataPagamento)return false;const fdt=f.dataPagamento+'T'+(f.hora||'00:00');return fdt>=c};
   const isReserva=nome=>RESERVE_BANCOS.includes(nome);
   const naoReserva=f=>!f.banco||!isReserva(f.banco.trim());
   const mask=n=>valoresVisiveis?fmtBRL(n):'R$ ••••';
@@ -1602,11 +1603,10 @@ function saveReservaMov(){
 }
 function openSaldoInicial(){
   const items=store.saldosIniciais&&store.saldosIniciais.length?store.saldosIniciais:[null,null];
-  const dataAtual=(store.saldosIniciais&&store.saldosIniciais[0]&&store.saldosIniciais[0].data)||todayISO();
   openModal(`<div class="mtop"><h3>Saldo inicial por conta</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty" style="margin-bottom:12px">Informe quanto você tem disponível em cada conta NA DATA ABAIXO. Lançamentos com data anterior a essa viram só histórico e não mexem no saldo; lançamentos a partir dessa data somam em cima. Esse saldo é somado ao saldo geral e ao saldo de cada banco, mas não aparece na lista de lançamentos.</div>
-      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="si_data" value="${dataAtual}"></div>
+      <div class="hist-empty" style="margin-bottom:12px">Informe quanto você tem disponível em cada conta AGORA. Lançamentos até este exato momento viram só histórico e não mexem no saldo; lançamentos feitos a partir de agora somam em cima. Esse saldo é somado ao saldo geral e ao saldo de cada banco, mas não aparece na lista de lançamentos.</div>
+      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="si_data" value="${todayISO()}"></div>
       <div id="siRows">${items.map(si=>siRowHtml(si)).join('')}</div>
       <button type="button" onclick="addSiRow()" style="all:unset;cursor:pointer;font-size:12px;color:var(--accent);font-weight:700;margin:8px 0 14px;display:block">+ Adicionar conta</button>
       <button class="msave" onclick="saveSaldoInicial()">Salvar saldo inicial</button>
@@ -1617,25 +1617,28 @@ async function saveSaldoInicial(){
   if(savingSaldoInicial)return;
   const bancos=$$('.si_banco'),valores=$$('.si_valor');
   const dataEscolhida=($('#si_data')&&$('#si_data').value)||todayISO();
+  const hora=nowHora();
   const arr=[];
-  bancos.forEach((el,i)=>{const nome=el.value.trim();const valor=parseFloat(valores[i].value)||0;if(nome)arr.push({banco:nome,valor,data:dataEscolhida})});
+  bancos.forEach((el,i)=>{const nome=el.value.trim();const valor=parseFloat(valores[i].value)||0;if(nome)arr.push({banco:nome,valor,data:dataEscolhida,hora})});
   savingSaldoInicial=true;
+  store.saldosIniciais=arr.map(s=>({id:uid(),...s}));
+  closeM();render();toast('Saldo inicial definido ✓');
   const btn=document.querySelector('#modal .msave');
   if(btn){btn.textContent='Salvando...';btn.disabled=true}
   try{
     const{data:existing,error:selErr}=await sb.from('saldos_iniciais').select('id');
-    if(selErr){toast('⚠️ Erro ao ler saldo atual: '+selErr.message);return}
+    if(selErr){toast('⚠️ Erro ao sincronizar: '+selErr.message);return}
     const existingIds=(existing||[]).map(r=>r.id);
     if(existingIds.length){
       const{error}=await sb.from('saldos_iniciais').delete().in('id',existingIds);
-      if(error){toast('⚠️ Erro ao limpar saldo anterior: '+error.message);return}
+      if(error){toast('⚠️ Erro ao sincronizar: '+error.message);return}
     }
     if(arr.length){
-      const{error}=await sb.from('saldos_iniciais').insert(arr.map(s=>({banco:s.banco,valor:s.valor,data:s.data})));
-      if(error){toast('⚠️ Erro ao salvar: '+error.message);return}
+      const{error}=await sb.from('saldos_iniciais').insert(arr.map(s=>({banco:s.banco,valor:s.valor,data:s.data,hora:s.hora})));
+      if(error){toast('⚠️ Erro ao sincronizar: '+error.message);return}
     }
     await fetchAll();
-    closeM();render();toast('Saldo inicial definido ✓');
+    render();
   }finally{
     savingSaldoInicial=false;
   }
@@ -1646,10 +1649,10 @@ function openAjustarSaldo(bancoPreSelecionado){
   const siExistente=(store.saldosIniciais||[]).find(si=>si.banco===bancoInicial);
   openModal(`<div class="mtop"><h3>Ajustar saldo de uma conta</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty" style="margin-bottom:12px">Digite o saldo que está APARECENDO NO BANCO agora. Lançamentos de hoje pra trás viram histórico e não mexem nesse valor; só lançamentos a partir da data abaixo (por padrão, amanhã) somam em cima. Se mudar a data pra hoje ou antes, lançamentos já registrados nesse período voltam a ser somados de novo.</div>
+      <div class="hist-empty" style="margin-bottom:12px">Digite o saldo que está APARECENDO NO BANCO agora. Tudo que já aconteceu até este exato momento vira histórico e não mexe nesse valor; qualquer lançamento novo que você fizer a partir de agora (mesmo hoje) soma em cima normalmente.</div>
       <div class="fld"><label>Banco/Conta</label><select id="aj_banco" onchange="ajBancoChanged(this.value)">${bancoOptions(bancoInicial)}</select></div>
       <div class="fld"><label>Saldo disponível (R$)</label><input type="number" step="0.01" id="aj_valor" value="${siExistente?siExistente.valor:''}" autofocus></div>
-      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="aj_data" value="${amanhaISO()}"></div>
+      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="aj_data" value="${todayISO()}"></div>
       <button class="msave" onclick="saveAjusteSaldo()">Salvar saldo desta conta</button>
     </div>`);
   setTimeout(()=>{const v=$('#aj_valor');if(v){v.focus();v.select()}},50);
@@ -1657,7 +1660,7 @@ function openAjustarSaldo(bancoPreSelecionado){
 function ajBancoChanged(banco){
   const si=(store.saldosIniciais||[]).find(x=>x.banco===banco);
   $('#aj_valor').value=si?si.valor:'';
-  $('#aj_data').value=amanhaISO();
+  $('#aj_data').value=todayISO();
 }
 let savingAjusteSaldo=false;
 async function saveAjusteSaldo(){
@@ -1665,10 +1668,11 @@ async function saveAjusteSaldo(){
   const banco=$('#aj_banco').value.trim();
   const valor=parseFloat($('#aj_valor').value)||0;
   const data=$('#aj_data').value||todayISO();
+  const hora=nowHora();
   if(!banco){toast('Selecione uma conta');return}
   savingAjusteSaldo=true;
   store.saldosIniciais=(store.saldosIniciais||[]).filter(si=>si.banco!==banco);
-  store.saldosIniciais.push({id:uid(),banco,valor,data});
+  store.saldosIniciais.push({id:uid(),banco,valor,data,hora});
   closeM();render();toast('Saldo de '+banco+' atualizado ✓');
   try{
     const{data:existing,error:selErr}=await sb.from('saldos_iniciais').select('id').eq('banco',banco);
@@ -1678,7 +1682,7 @@ async function saveAjusteSaldo(){
       const{error}=await sb.from('saldos_iniciais').delete().in('id',existingIds);
       if(error){toast('⚠️ Erro ao sincronizar: '+error.message);return}
     }
-    const{error}=await sb.from('saldos_iniciais').insert({banco,valor,data});
+    const{error}=await sb.from('saldos_iniciais').insert({banco,valor,data,hora});
     if(error){toast('⚠️ Erro ao sincronizar: '+error.message);return}
     await fetchAll();
     render();
