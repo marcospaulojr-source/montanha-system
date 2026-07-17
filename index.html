@@ -910,11 +910,12 @@ function renderFin(){
       <div class="finval" style="color:${isIn?'var(--green)':'#E11D48'}">${isIn?'+ ':'− '}${mask(finLiquido(f))}${f.desconto?` <span style="font-size:11px;color:var(--muted);font-weight:600">(bruto ${mask(f.valor)})</span>`:''}</div>
     </div>`;
   };
-  const filtPendentes=filtered.filter(f=>finStatus(f)!=='pago');
   const filtEntradas=filtered.filter(f=>f.tipo==='entrada'&&finStatus(f)==='pago');
   const filtSaidas=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)==='pago');
   const filtResgates=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)==='pago'&&f.banco&&isReserva(f.banco.trim()));
-  const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},resgate:{lab:'💸 Resgates',itens:filtResgates,vazio:'Nenhum resgate de reserva neste período.'},pendente:{lab:'⏳ Pendentes',itens:filtPendentes,vazio:'Nenhum pendente neste período.'}};
+  const filtAPagar=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)!=='pago');
+  const filtAReceber=filtered.filter(f=>f.tipo==='entrada'&&finStatus(f)!=='pago');
+  const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},resgate:{lab:'💸 Resgates',itens:filtResgates,vazio:'Nenhum resgate de reserva neste período.'},apagar:{lab:'📌 A pagar',itens:filtAPagar,vazio:'Nada a pagar neste período.'},areceber:{lab:'💰 A receber',itens:filtAReceber,vazio:'Nada a receber neste período.'}};
   if(!grupos[finGroupFilter])finGroupFilter='saida';
   const ordenarLista=lista=>{
     const arr=lista.map((f,i)=>({f,i}));
@@ -1075,7 +1076,9 @@ function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O 
 function addFinanceiro(){
   snapshotFinanceiro();
   const bancoPadrao=BANCOS.includes('Nubank PF')?'Nubank PF':(BANCOS[0]||'');
-  const f={id:uid(),tipo:'saida',descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:'pago',dataPagamento:todayISO(),hora:nowHora(),categoria:''};
+  const tipoPadrao=finGroupFilter==='entrada'||finGroupFilter==='areceber'?'entrada':'saida';
+  const statusPadrao=finGroupFilter==='apagar'||finGroupFilter==='areceber'?'pendente':'pago';
+  const f={id:uid(),tipo:tipoPadrao,descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:statusPadrao,dataPagamento:statusPadrao==='pago'?todayISO():'',hora:nowHora(),categoria:''};
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
   sb.from('financeiro').insert(finToDb(f)).then(sbErr);
