@@ -331,7 +331,7 @@ button{font-family:inherit}
     <section class="view" id="fin">
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><span id="finUndoBtn"></span><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button></div>
       <div class="stats" id="finStats"></div>
-      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="openGerenciarContas()">⚙️ Gerenciar contas</span><span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:var(--accent);font-weight:700" onclick="openSaldoInicial()">Definir saldo inicial</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div></div>
+      <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="openGerenciarContas()">⚙️ Gerenciar contas</span><span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:#0369A1;font-weight:700" onclick="openAjustarSaldo()">✏️ Ajustar saldo de uma conta</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div><div style="padding:0 19px 14px"><span class="tag" style="cursor:pointer;color:var(--muted);font-weight:600;font-size:11.5px" onclick="openSaldoInicial()">Ajuste avançado (todas as contas de uma vez)</span></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📆 Divisão por mês <span class="tag" id="finAno"></span></h2><div id="finMeses" style="padding:6px 19px 14px"></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📈 Evolução financeira</h2>
@@ -803,7 +803,7 @@ function renderFin(){
     bancoMap[b]=(bancoMap[b]||0)+(f.tipo==='entrada'?finLiquido(f):-finLiquido(f));
   });
   const bancoRow=([nome,saldo])=>`
-    <div class="finbank-row"><span>${bancoDot(nome)}${esc(nome)}</span>
+    <div class="finbank-row" style="cursor:pointer" onclick="openAjustarSaldo('${esc(nome)}')" title="Clique para ajustar o saldo desta conta"><span>${bancoDot(nome)}${esc(nome)}</span>
       <span style="color:${saldo>=0?'var(--green)':'#E11D48'};font-weight:700">${mask(saldo)}</span>
     </div>`;
   const bancosNormais=Object.entries(bancoMap).filter(([nome])=>!isReserva(nome)).sort((a,b)=>b[1]-a[1]);
@@ -1637,6 +1637,51 @@ async function saveSaldoInicial(){
     closeM();render();toast('Saldo inicial definido ✓');
   }finally{
     savingSaldoInicial=false;
+  }
+}
+
+function openAjustarSaldo(bancoPreSelecionado){
+  const bancoInicial=bancoPreSelecionado||BANCOS[0]||'';
+  const siExistente=(store.saldosIniciais||[]).find(si=>si.banco===bancoInicial);
+  openModal(`<div class="mtop"><h3>Ajustar saldo de uma conta</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="hist-empty" style="margin-bottom:12px">Corrige o saldo de UMA conta só, sem mexer nas outras. Lançamentos com data anterior à data abaixo viram histórico e não mexem no saldo; a partir dessa data somam em cima do valor informado.</div>
+      <div class="fld"><label>Banco/Conta</label><select id="aj_banco" onchange="ajBancoChanged(this.value)">${bancoOptions(bancoInicial)}</select></div>
+      <div class="fld"><label>Saldo disponível (R$)</label><input type="number" step="0.01" id="aj_valor" value="${siExistente?siExistente.valor:''}" autofocus></div>
+      <div class="fld" style="max-width:220px"><label>Válido a partir de</label><input type="date" id="aj_data" value="${siExistente?siExistente.data:todayISO()}"></div>
+      <button class="msave" onclick="saveAjusteSaldo()">Salvar saldo desta conta</button>
+    </div>`);
+  setTimeout(()=>{const v=$('#aj_valor');if(v){v.focus();v.select()}},50);
+}
+function ajBancoChanged(banco){
+  const si=(store.saldosIniciais||[]).find(x=>x.banco===banco);
+  $('#aj_valor').value=si?si.valor:'';
+  $('#aj_data').value=si?si.data:todayISO();
+}
+let savingAjusteSaldo=false;
+async function saveAjusteSaldo(){
+  if(savingAjusteSaldo)return;
+  const banco=$('#aj_banco').value.trim();
+  const valor=parseFloat($('#aj_valor').value)||0;
+  const data=$('#aj_data').value||todayISO();
+  if(!banco){toast('Selecione uma conta');return}
+  savingAjusteSaldo=true;
+  const btn=document.querySelector('#modal .msave');
+  if(btn){btn.textContent='Salvando...';btn.disabled=true}
+  try{
+    const{data:existing,error:selErr}=await sb.from('saldos_iniciais').select('id').eq('banco',banco);
+    if(selErr){toast('⚠️ Erro ao ler saldo atual: '+selErr.message);return}
+    const existingIds=(existing||[]).map(r=>r.id);
+    if(existingIds.length){
+      const{error}=await sb.from('saldos_iniciais').delete().in('id',existingIds);
+      if(error){toast('⚠️ Erro ao limpar saldo anterior: '+error.message);return}
+    }
+    const{error}=await sb.from('saldos_iniciais').insert({banco,valor,data});
+    if(error){toast('⚠️ Erro ao salvar: '+error.message);return}
+    await fetchAll();
+    closeM();render();toast('Saldo de '+banco+' atualizado ✓');
+  }finally{
+    savingAjusteSaldo=false;
   }
 }
 
