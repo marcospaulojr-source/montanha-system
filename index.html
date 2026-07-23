@@ -302,7 +302,7 @@ button{font-family:inherit}
     <section class="view on" id="dash">
       <div class="stats" id="stats"></div>
       <div class="grid2">
-        <div class="panel"><h2>▦ Produção <span class="tag" id="prodTag"></span><select id="editorFilterDash" onchange="setEditorFilter(this.value)" style="margin-left:8px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);font-weight:600"></select></h2><div class="plist" id="dashList"></div></div>
+        <div class="panel"><h2>▦ Produção <span class="tag" id="prodTag"></span><select id="editorFilterDash" onchange="setEditorFilter(this.value)" style="margin-left:8px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);font-weight:600"></select><select id="prodOrderDash" onchange="setProdOrder(this.value)" style="margin-left:8px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);font-weight:600"><option value="desc">Mais recente primeiro</option><option value="asc">Mais antigo primeiro</option></select></h2><div class="plist" id="dashList"></div></div>
         <div class="stack">
           <div class="panel"><h2>📋 Descrição dos serviços <span class="tag" id="descServN">0</span></h2><div class="plist" id="dashDescServ"></div></div>
           <div class="panel"><h2>✎ Modificações solicitadas <span class="tag" id="modsN">0</span></h2><div class="plist" id="dashMods"></div></div>
@@ -541,6 +541,8 @@ function stagePct(est){const si=STAGES.findIndex(s=>s[0]===est);return Math.roun
 function thumbInner(icon){const b=cur().brand;return b.logoImg?`<img src="${b.logoImg}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:icon}
 let editorFilter='all';
 function setEditorFilter(v){editorFilter=v;render()}
+let prodOrder='desc';
+function setProdOrder(v){prodOrder=v;render()}
 function editorList(V){return[...new Set(V.map(v=>v.editor).filter(Boolean))].sort()}
 function renderEditorFilters(V){
   const editors=editorList(V);
@@ -640,7 +642,9 @@ function render(){
   const V=c.videos;
   renderEditorFilters(V);
   const ativos=V.filter(v=>v.estagio!=='finalizado');
-  const Vf=editorFilter==='all'?ativos:ativos.filter(v=>v.editor===editorFilter);
+  let Vf=editorFilter==='all'?ativos:ativos.filter(v=>v.editor===editorFilter);
+  if(prodOrder==='desc')Vf=Vf.slice().reverse();
+  const prodOrderSel=$('#prodOrderDash');if(prodOrderSel)prodOrderSel.value=prodOrder;
   const prod=V.filter(v=>['agendado','captacao','edicao','envio_aprovacao','modificacoes','aprovacao'].includes(v.estagio));
   const mods=V.filter(v=>v.estagio==='modificacoes');
   // próxima entrega (data futura mais próxima entre os não concluídos)
