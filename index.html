@@ -149,7 +149,7 @@ button{font-family:inherit}
 .vcard .vcli{font-size:11px;font-weight:700;color:var(--steel);margin-bottom:8px}
 .vcard .vf{display:flex;align-items:center;justify-content:space-between}
 .vcard .vd{font-size:11px;color:var(--muted);font-weight:500}
-.stage-agendado{border-left-color:#0EA5E9}.stage-roteiro{border-left-color:var(--muted)}.stage-captacao{border-left-color:var(--blue)}.stage-edicao{border-left-color:var(--violet)}.stage-modificacoes{border-left-color:#E11D48}.stage-aprovacao{border-left-color:var(--amber)}.stage-publicado{border-left-color:var(--green)}.stage-finalizado{border-left-color:#0F766E}
+.stage-agendado{border-left-color:#0EA5E9}.stage-captacao{border-left-color:var(--blue)}.stage-edicao{border-left-color:var(--violet)}.stage-envio_aprovacao{border-left-color:#0891B2}.stage-modificacoes{border-left-color:#E11D48}.stage-aprovacao{border-left-color:var(--amber)}.stage-publicado{border-left-color:var(--green)}.stage-finalizado{border-left-color:#0F766E}
 .cal{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);overflow:hidden}
 .calnav{display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--line);font-weight:700;font-size:14px}
 .calnav .a{cursor:pointer;color:var(--muted);font-size:18px;user-select:none;padding:0 6px}
@@ -364,8 +364,8 @@ button{font-family:inherit}
 
 <script>
 const OBJ={autoridade:'Autoridade',captacao:'Captação',redes_sociais:'Redes Sociais',institucional:'Institucional',reuniao:'Reunião'};
-const STAGES=[['agendado','Agendado'],['roteiro','Roteiro'],['captacao','Captação'],['edicao','Edição'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovação'],['publicado','Publicado'],['finalizado','Finalizado']];
-const STAGE_COLOR={agendado:'#0EA5E9',roteiro:'#64748B',captacao:'#2563EB',edicao:'#7C3AED',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
+const STAGES=[['agendado','Agendado'],['captacao','Captação'],['edicao','Edição'],['envio_aprovacao','Enviado para aprovação'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovado'],['publicado','Publicado'],['finalizado','Finalizado']];
+const STAGE_COLOR={agendado:'#0EA5E9',captacao:'#2563EB',edicao:'#7C3AED',envio_aprovacao:'#0891B2',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
 const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao_debito:'Cartão de Débito',cartao_credito:'Cartão de Crédito',transferencia:'Transferência',dinheiro:'Dinheiro',outro:'Outro',cartao:'Cartão (antigo)'};
 let BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
 const BANCO_COLORS=['#2563EB','#7C3AED','#DB2777','#D97706','#0D9488','#DC2626','#0EA5E9','#65A30D'];
@@ -392,7 +392,7 @@ function clienteColor(name){
 const fmtBRL=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function finStatus(f){if(f.status==='pago')return'pago';if(f.vencimento&&f.vencimento<todayISO())return'atrasado';return'pendente'}
 const SLAB=Object.fromEntries(STAGES);
-const shortLab=k=>k==='modificacoes'?'Modificações':SLAB[k];
+const shortLab=k=>k==='modificacoes'?'Modificações':k==='envio_aprovacao'?'Enviado':SLAB[k];
 const EVC={autoridade:'#7C3AED',captacao:'#D97706',redes_sociais:'#0284C7',institucional:'#475569',reuniao:'#DB2777'};
 const SUPABASE_URL='https://painelmontanhafilmes-supabase.ev4wy7.easypanel.host';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgzNDI5Mjg2LCJleHAiOjIwOTg3ODkyODZ9.DTJ4yN6xpSBFF9pjZGerAPQu-GXNCBwKsgyV2Sfl3_I';
@@ -473,6 +473,19 @@ async function fetchAll(){
   };
 }
 function save(){}
+async function autoArchivePublicados(){
+  const curKey=todayISO().slice(0,7);
+  const jobs=[];
+  (store.clients||[]).forEach(c=>(c.videos||[]).forEach(v=>{
+    if(v.estagio!=='publicado')return;
+    const entry=(v.historico||[]).filter(h=>h.estagio==='publicado').pop();
+    if(!entry||!entry.data||entry.data.slice(0,7)===curKey)return;
+    v.estagio='finalizado';
+    logStage(v,'finalizado');
+    jobs.push(sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',v.id));
+  }));
+  if(jobs.length)await Promise.all(jobs);
+}
 function logStage(v,estagio){
   if(!v.historico)v.historico=[];
   const last=v.historico[v.historico.length-1];
@@ -541,7 +554,7 @@ function renderResumoGeral(){
   $('#resumoClientesN').textContent=clients.length+' cliente(s)';
   const rows=clients.map(cl=>{
     const V=cl.videos||[];
-    const prod=V.filter(v=>['agendado','roteiro','captacao','edicao','modificacoes','aprovacao'].includes(v.estagio)).length;
+    const prod=V.filter(v=>['agendado','captacao','edicao','envio_aprovacao','modificacoes','aprovacao'].includes(v.estagio)).length;
     const mods=V.filter(v=>v.estagio==='modificacoes').length;
     const futuras=V.filter(v=>!['publicado','finalizado'].includes(v.estagio)&&v.entrega).map(v=>v.entrega).sort();
     const prox=futuras.find(d=>d>=todayISO())||futuras[0];
@@ -628,7 +641,7 @@ function render(){
   renderEditorFilters(V);
   const ativos=V.filter(v=>v.estagio!=='finalizado');
   const Vf=editorFilter==='all'?ativos:ativos.filter(v=>v.editor===editorFilter);
-  const prod=V.filter(v=>['agendado','roteiro','captacao','edicao','modificacoes','aprovacao'].includes(v.estagio));
+  const prod=V.filter(v=>['agendado','captacao','edicao','envio_aprovacao','modificacoes','aprovacao'].includes(v.estagio));
   const mods=V.filter(v=>v.estagio==='modificacoes');
   // próxima entrega (data futura mais próxima entre os não concluídos)
   const futuras=V.filter(v=>!['publicado','finalizado'].includes(v.estagio)&&v.entrega).map(v=>v.entrega).sort();
@@ -1062,7 +1075,7 @@ function openV(id){
       <div class="fld"><label>Roteiro</label><textarea id="e_rot">${esc(v.roteiro)}</textarea></div>
       <div class="time">${STAGES.map((s,i)=>`<div class="step ${i<si?'done':i===si?'cur':''}"><div class="d">${i<si?'✓':i+1}</div>${shortLab(s[0])}</div>`).join('')}</div>
       <div class="fld"><label>Histórico de atualizações</label>${historyHtml(v)}</div>
-      ${v.estagio==='aprovacao'?`<div class="acts" style="margin:6px 0 2px"><button class="btn btn-adj" style="flex:1" onclick="adjust('${id}')">Pedir ajuste</button><button class="btn btn-ok" style="flex:1" onclick="approve('${id}')">Aprovar</button></div>`:''}
+      ${v.estagio==='envio_aprovacao'?`<div class="acts" style="margin:6px 0 2px"><button class="btn btn-adj" style="flex:1" onclick="adjust('${id}')">Pedir ajuste</button><button class="btn btn-ok" style="flex:1" onclick="approve('${id}')">Aprovar</button></div>`:''}
       <button class="gcal" onclick="gcalOpen('${id}')">📅 Adicionar ao Google Agenda</button>
       <button class="msave" onclick="saveV('${id}')">Salvar alterações</button>
       <button class="mdel" onclick="delV('${id}')">Excluir</button>
@@ -1096,7 +1109,7 @@ async function delV(id){
   const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then(sbErr)};
   if(v)gcalDeleteEvent(v,finish);else finish();
 }
-function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='publicado';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado e publicado');sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',id).then(sbErr)}
+function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='aprovacao';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado');sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',id).then(sbErr)}
 function adjust(id){const v=cur().videos.find(x=>x.id===id);const txt=prompt('O que o cliente pediu para modificar?',v.mods||'');if(txt===null)return;v.mods=txt.trim();v.estagio='modificacoes';logStage(v,v.estagio);closeM();render();go('dash');toast('↩ Modificações solicitadas registradas');sb.from('videos').update({estagio:v.estagio,mods:v.mods,historico:v.historico}).eq('id',id).then(sbErr)}
 
 function addFinanceiro(){
@@ -1936,6 +1949,7 @@ async function boot(){
     await sb.from('clients').insert({id:c.id,name:c.brand.name,sub:c.brand.sub,accent:c.brand.accent,logo:c.brand.logo,logo_img:''});
     await fetchAll();
   }
+  await autoArchivePublicados();
   $('#loadingOverlay').classList.add('hidden');
   $('#appRoot').classList.remove('hidden');
   render();
