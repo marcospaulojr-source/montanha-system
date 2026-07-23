@@ -10,7 +10,19 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const RESPONSE_FORMAT = `{"lancamentos":[{"data":"YYYY-MM-DD","descricao":"texto curto","valor":123.45,"tipo":"entrada"}]}`;
+const RESPONSE_FORMAT = `{"lancamentos":[{"data":"YYYY-MM-DD","descricao":"texto curto","valor":123.45,"tipo":"entrada","formaPagamento":"pix","categoria":"","natureza":"empresa"}]}`;
+
+const FORMA_PAGAMENTO_VALUES = ["pix", "boleto", "cartao_debito", "cartao_credito", "transferencia", "dinheiro", "outro"];
+
+const CAMPOS_EXTRAS = `- "formaPagamento" deve ser exatamente um destes valores: ${FORMA_PAGAMENTO_VALUES.join(", ")}.
+  Use pistas do texto: "pix" para Pix, "boleto" para boleto, "débito"/"cartão de débito" para
+  cartao_debito, "crédito"/"cartão de crédito" para cartao_credito, "transferência"/"TED"/"DOC"
+  para transferencia, "dinheiro"/"espécie" para dinheiro. Se não der pra saber com confiança, use "outro".
+- "categoria" deve ser "imposto" quando for claramente um pagamento de imposto/tributo (DAS, ISS, INSS,
+  imposto de renda, GPS, simples nacional, etc). Caso contrário, deixe "" (string vazia).
+- "natureza" deve ser "pessoal" quando for claramente um gasto/recebimento pessoal do dono do negócio
+  (ex: "gastei no mercado pra casa", "comprei remédio pra mim"), e "empresa" em todos os outros casos
+  (é o padrão — na dúvida, use "empresa").`;
 
 function imagePrompt() {
   return `Você recebeu a imagem de um extrato bancário (print de tela ou foto).
@@ -31,6 +43,7 @@ Regras:
   grupo mais próximo acima dele, não o horário. Se dois cabeçalhos de data diferentes aparecerem na
   imagem, cada lançamento pertence ao cabeçalho de data que está IMEDIATAMENTE acima dele na imagem.
 - Ignore saldo, cabeçalhos, totais e linhas que não sejam lançamentos individuais.
+${CAMPOS_EXTRAS}
 - Se não conseguir ler algum campo com confiança, ainda assim inclua a linha com sua melhor
   estimativa — a pessoa vai revisar tudo antes de confirmar.
 - Se a imagem não for um extrato bancário, devolva {"lancamentos":[]}.`;
@@ -38,15 +51,16 @@ Regras:
 
 function textPrompt(spokenText, hojeISO, contas) {
   const contasList = Array.isArray(contas) && contas.length ? contas.join(", ") : null;
-  return `Você recebeu a transcrição de uma pessoa falando em voz alta sobre um ou mais
-lançamentos financeiros que ela quer registrar. Hoje é ${hojeISO}.
+  return `Você recebeu a transcrição (via reconhecimento de voz, pode ter erros de grafia/homófonos)
+de uma pessoa falando em voz alta sobre um ou mais lançamentos financeiros que ela quer registrar.
+Hoje é ${hojeISO}.
 
 Transcrição: "${spokenText}"
 
 Extraia o(s) lançamento(s) descrito(s) e devolva SOMENTE um JSON válido, sem markdown,
 sem texto antes ou depois, no formato:
 
-{"lancamentos":[{"data":"YYYY-MM-DD","descricao":"texto curto","valor":123.45,"tipo":"entrada","banco":"nome exato da conta ou vazio"}]}
+${RESPONSE_FORMAT.replace('}]}', ',"banco":"nome exato da conta ou vazio"}]}')}
 
 Regras:
 - "tipo" é "entrada" para dinheiro que entrou/recebeu e "saida" para dinheiro que saiu/pagou/gastou.
@@ -59,9 +73,13 @@ Regras:
   NUNCA inclua o nome do banco/conta dentro de "descricao" — o nome do banco/conta vai SEMPRE
   separado, no campo "banco".
 - O campo "banco" é OBRIGATÓRIO em todo item da lista (nunca omita esse campo).
-${contasList ? `  Se a pessoa mencionar uma conta (ou algo parecido/abreviado com uma delas), preencha "banco" com
-  o nome EXATO de uma destas, copiado sem alterar nada: ${contasList}.
+${contasList ? `  Se a pessoa mencionar uma conta (ou algo parecido/abreviado/mal transcrito de uma delas), preencha
+  "banco" com o nome EXATO de uma destas, copiado sem alterar nada: ${contasList}.
   Se a pessoa não mencionar nenhuma conta ou não der pra saber qual, preencha "banco" com string vazia "".` : `  Não há contas cadastradas ainda, então preencha "banco" sempre com string vazia "".`}
+${CAMPOS_EXTRAS}
+- A transcrição de voz pode vir com erros de grafia, palavras coladas ou homófonos (ex: "Nubank pf"
+  pode virar "Nubank P F" ou "Nubank PF" junto). Use o contexto e a lista de contas acima para
+  corrigir esses erros com bom senso.
 - Se a transcrição tiver mais de um lançamento (ex: "recebi 500 do pix e paguei 100 de uber"), devolva
   cada um como um item separado na lista.
 - Se não conseguir identificar nenhum lançamento com sentido financeiro na transcrição, devolva
@@ -114,7 +132,7 @@ export default {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-5",
+          model: "claude-sonnet-5",
           max_tokens: 4096,
           messages: [{ role: "user", content: messageContent }],
         }),
