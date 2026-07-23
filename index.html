@@ -364,7 +364,7 @@ button{font-family:inherit}
 
 <script>
 const OBJ={autoridade:'Autoridade',captacao:'Captação',redes_sociais:'Redes Sociais',institucional:'Institucional',reuniao:'Reunião'};
-const STAGES=[['agendado','Agendado'],['captacao','Captação'],['edicao','Edição'],['envio_aprovacao','Enviado para aprovação'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovado'],['publicado','Publicado'],['finalizado','Finalizado']];
+const STAGES=[['agendado','Agendado'],['captacao','Captação'],['edicao','Edição'],['envio_aprovacao','Enviado para aprovação'],['modificacoes','Modificações Solicitadas'],['aprovacao','Aprovado'],['publicado','Publicado']];
 const STAGE_COLOR={agendado:'#0EA5E9',captacao:'#2563EB',edicao:'#7C3AED',envio_aprovacao:'#0891B2',modificacoes:'#E11D48',aprovacao:'#D97706',publicado:'#16A34A',finalizado:'#0F766E'};
 const PAY_METHODS={pix:'Pix',boleto:'Boleto',cartao_debito:'Cartão de Débito',cartao_credito:'Cartão de Crédito',transferencia:'Transferência',dinheiro:'Dinheiro',outro:'Outro',cartao:'Cartão (antigo)'};
 let BANCOS=['Nubank PF','Nubank Caixinha Roxa','Nubank Caixinha','Caixa PJ','Caixa PF','Caixa Poupança'];
@@ -449,7 +449,7 @@ function propToDb(p){
 }
 async function fetchAll(){
   const [{data:clientsRows},{data:videoRows},{data:finRows},{data:siRows},{data:cfgRows},{data:propRows}]=await Promise.all([
-    sb.from('clients').select('*').order('created_at'),
+    sb.from('clients').select('*').order('created_at',{ascending:false}),
     sb.from('videos').select('*').order('created_at'),
     sb.from('financeiro').select('*').order('created_at'),
     sb.from('saldos_iniciais').select('*').order('created_at'),
@@ -477,8 +477,8 @@ async function autoArchivePublicados(){
   const curKey=todayISO().slice(0,7);
   const jobs=[];
   (store.clients||[]).forEach(c=>(c.videos||[]).forEach(v=>{
-    if(v.estagio!=='publicado')return;
-    const entry=(v.historico||[]).filter(h=>h.estagio==='publicado').pop();
+    if(v.estagio!=='aprovacao'&&v.estagio!=='publicado')return;
+    const entry=(v.historico||[]).filter(h=>h.estagio===v.estagio).pop();
     if(!entry||!entry.data||entry.data.slice(0,7)===curKey)return;
     v.estagio='finalizado';
     logStage(v,'finalizado');
