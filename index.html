@@ -438,10 +438,10 @@ function videoToDb(v,clientId){
   return {id:v.id,client_id:clientId,cliente:v.cliente||'',titulo:v.titulo||'',objetivo:v.objetivo,estagio:v.estagio,inicio:v.inicio||null,entrega:v.entrega||null,roteiro:v.roteiro||'',mods:v.mods||'',enviado:!!v.enviado,data_envio:v.dataEnvio||null,gcal_event_id:v.gcalEventId||null,editor:v.editor||'',descricao_servico:v.descricaoServico||'',historico:v.historico||[]};
 }
 function dbToFin(row){
-  return {id:row.id,tipo:row.tipo,descricao:row.descricao||'',cliente:row.cliente||'',valor:Number(row.valor)||0,desconto:Number(row.desconto)||0,formaPagamento:row.forma_pagamento,banco:row.banco||'',vencimento:row.vencimento||'',status:row.status,dataPagamento:row.data_pagamento||'',hora:row.hora||'',categoria:row.categoria||'',natureza:row.natureza||'empresa'};
+  return {id:row.id,tipo:row.tipo,descricao:row.descricao||'',cliente:row.cliente||'',valor:Number(row.valor)||0,desconto:Number(row.desconto)||0,formaPagamento:row.forma_pagamento,banco:row.banco||'',vencimento:row.vencimento||'',status:row.status,dataPagamento:row.data_pagamento||'',hora:row.hora||'',categoria:row.categoria||'',natureza:row.natureza||'empresa',origemVoz:!!row.origem_voz};
 }
 function finToDb(f){
-  return {id:f.id,tipo:f.tipo,descricao:f.descricao||'',cliente:f.cliente||'',valor:f.valor||0,desconto:f.desconto||0,forma_pagamento:f.formaPagamento,banco:f.banco||'',vencimento:f.vencimento||null,status:f.status,data_pagamento:f.dataPagamento||null,hora:f.hora||null,categoria:f.categoria||null,natureza:f.natureza||'empresa'};
+  return {id:f.id,tipo:f.tipo,descricao:f.descricao||'',cliente:f.cliente||'',valor:f.valor||0,desconto:f.desconto||0,forma_pagamento:f.formaPagamento,banco:f.banco||'',vencimento:f.vencimento||null,status:f.status,data_pagamento:f.dataPagamento||null,hora:f.hora||null,categoria:f.categoria||null,natureza:f.natureza||'empresa',origem_voz:!!f.origemVoz};
 }
 function finLiquido(f){return(f.valor||0)-(f.desconto||0)}
 function dbToProp(row){
@@ -948,9 +948,9 @@ function renderFin(){
     const stColor=st==='pago'?'var(--green)':st==='atrasado'?'#E11D48':'var(--amber)';
     const stLabel=st==='pago'?'Pago':st==='atrasado'?'Atrasado':'Pendente';
     const isIn=f.tipo==='entrada';
-    return `<div class="prow" onclick="openFin('${f.id}')">
+    return `<div class="prow"${f.origemVoz?' style="border-left:3px solid #7C3AED;background:#7C3AED14"':''} onclick="openFin('${f.id}')">
       <div class="prow-top"><input type="checkbox" class="finselect" data-id="${f.id}" onclick="event.stopPropagation()" onchange="toggleFinSelecionado('${f.id}',this.checked)" ${finSelecionados.has(f.id)?'checked':''}><div class="thumb" style="background:${isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)'}">${isIn?'↑':'↓'}</div>
-        <div class="info">${f.cliente?`<div class="cliname">${esc(f.cliente)}</div>`:''}<div class="t">${esc(f.descricao||'(sem descrição)')}${finNatureza(f)==='pessoal'?' <span style="font-size:10.5px;font-weight:700;color:#F59E0B">👤 Pessoal</span>':''}</div><div class="m">${finDate(f)?fmtD(finDate(f))+(f.hora?' às '+esc(f.hora):'')+' · ':''}${PAY_METHODS[f.formaPagamento]||''}${f.banco?' · '+bancoDot(f.banco)+esc(f.banco):''}${f.desconto?' · Desconto na fonte: '+mask(f.desconto):''}</div></div>
+        <div class="info">${f.cliente?`<div class="cliname">${esc(f.cliente)}</div>`:''}<div class="t">${esc(f.descricao||'(sem descrição)')}${finNatureza(f)==='pessoal'?' <span style="font-size:10.5px;font-weight:700;color:#F59E0B">👤 Pessoal</span>':''}${f.origemVoz?' <span style="font-size:10.5px;font-weight:700;color:#7C3AED">🎤 Entrada por comando de voz — conferir</span>':''}</div><div class="m">${finDate(f)?fmtD(finDate(f))+(f.hora?' às '+esc(f.hora):'')+' · ':''}${PAY_METHODS[f.formaPagamento]||''}${f.banco?' · '+bancoDot(f.banco)+esc(f.banco):''}${f.desconto?' · Desconto na fonte: '+mask(f.desconto):''}</div></div>
         ${st!=='pago'?`<span class="stagechip" style="background:${stColor}">${stLabel}</span>`:''}
         <button class="findel" onclick="event.stopPropagation();delFin('${f.id}')" title="Excluir lançamento">🗑️</button></div>
       <div class="finval" style="color:${isIn?'var(--green)':'#E11D48'}">${isIn?'+ ':'− '}${mask(finLiquido(f))}${f.desconto?` <span style="font-size:11px;color:var(--muted);font-weight:600">(bruto ${mask(f.valor)})</span>`:''}</div>
@@ -1133,6 +1133,7 @@ function openFin(id,isNew){
   const f=store.financeiro.find(x=>x.id===id);
   openModal(`<div class="mtop"><h3>Lançamento financeiro</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
+      ${f.origemVoz?`<div class="hist-empty" style="border:1px solid #7C3AED;color:#7C3AED;font-weight:700">🎤 Este lançamento foi criado automaticamente por comando de voz. Confira os dados abaixo e clique em "Salvar lançamento" pra confirmar.</div>`:''}
       <div class="fld"><label>Tipo</label><select id="f_tipo" onchange="toggleVencLabel(this.value)"><option value="entrada" ${f.tipo==='entrada'?'selected':''}>Entrada</option><option value="saida" ${f.tipo==='saida'?'selected':''}>Saída</option></select></div>
       <div class="fld"><label>Descrição</label><input id="f_desc" value="${esc(f.descricao)}" placeholder="Ex: Pagamento vídeo institucional"></div>
       <div class="fld"><label>Cliente (opcional)</label><select id="f_cliente">${clienteOptions(f.cliente||'')}</select></div>
@@ -1175,6 +1176,7 @@ function saveFin(id,isNew){
   f.dataPagamento=f.status==='pago'?(f.vencimento||todayISO()):'';
   f.categoria=$('#f_categoria')?$('#f_categoria').value:'';
   f.natureza=$('#f_natureza')?$('#f_natureza').value:'empresa';
+  f.origemVoz=false;
   closeM();render();toast('Lançamento salvo ✓');
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
@@ -1197,7 +1199,7 @@ async function clearFinanceiro(){
 // ---- importar extrato via IA (Supabase Edge Function + Anthropic) ----
 let extratoLancamentos=[];
 function openImportExtrato(){
-  extratoLancamentos=[];extratoBanco='';
+  extratoLancamentos=[];extratoBanco='';extratoOrigemVoz=false;
   openModalWide(`<div class="mtop"><h3>📷 Importar extrato (IA)</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
       <div class="hist-empty">Envie um ou vários prints/fotos do extrato bancário (ou cole com Ctrl+V). A IA vai identificar os lançamentos de todas as imagens — você confere, edita e escolhe o que importar antes de gravar.</div>
@@ -1327,27 +1329,31 @@ function extratoRow(l,i){
     <label>Hora<input type="time" value="${esc(l.hora||'')}" onchange="extratoLancamentos[${i}].hora=this.value"></label>
   </div>${warn}`;
 }
+let extratoOrigemVoz=false;
 function confirmarImportExtrato(){
   const selecionados=extratoLancamentos.filter(l=>l.incluir);
   if(!selecionados.length){toast('Nenhum lançamento selecionado');return}
   snapshotFinanceiro();
+  const origemVoz=extratoOrigemVoz;
   const novos=selecionados.map(l=>{
     const status=normStatus(l.status);
-    return{id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:l.cliente||'',valor:l.valor,desconto:l.desconto||0,formaPagamento:normFormaPagamento(l.formaPagamento),banco:l.banco||'',vencimento:l.data,hora:l.hora||'',status,dataPagamento:status==='pago'?l.data:'',categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza)};
+    return{id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:l.cliente||'',valor:l.valor,desconto:l.desconto||0,formaPagamento:normFormaPagamento(l.formaPagamento),banco:l.banco||'',vencimento:l.data,hora:l.hora||'',status,dataPagamento:status==='pago'?l.data:'',categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),origemVoz};
   });
   store.financeiro=(store.financeiro||[]).concat(novos);
   sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
-  closeM();render();toast(`✓ ${novos.length} lançamento(s) adicionado(s)`);
+  extratoOrigemVoz=false;
+  closeM();render();
+  toast(origemVoz?`🎤 ${novos.length} lançamento(s) adicionado(s) por voz — confira no financeiro`:`✓ ${novos.length} lançamento(s) adicionado(s)`);
 }
 
 // ---- lançar por voz (Web Speech API + IA via o mesmo Worker) ----
 let vozRecognition=null;
 function openLancarVoz(){
-  extratoLancamentos=[];extratoBanco='';
+  extratoLancamentos=[];extratoBanco='';extratoOrigemVoz=false;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   openModalWide(`<div class="mtop"><h3>🎤 Lançar por voz</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty">Clique no microfone e fale nessa ordem: <b>recebi/paguei</b> → <b>valor</b> → <b>de quem/do quê</b> → <b>quando</b> → <b>conta (opcional)</b>. Ex: "recebi 500 reais de pix da Ana hoje no Nubank PF" ou "paguei 80 reais de gasolina ontem na Caixa PJ". Se não falar a conta, você escolhe depois na revisão. Pode falar mais de um lançamento na mesma frase.</div>
+      <div class="hist-empty">Clique no microfone e fale nessa ordem: <b>recebi/paguei</b> → <b>valor</b> → <b>de quem/do quê</b> → <b>quando</b> → <b>conta (opcional)</b>. Ex: "recebi 500 reais de pix da Ana hoje no Nubank PF" ou "paguei 80 reais de gasolina ontem na Caixa PJ". O lançamento é gravado automaticamente assim que você para de falar — sem tela de confirmação. Ele fica destacado em <span style="color:#7C3AED;font-weight:700">roxo 🎤</span> no financeiro até você abrir e conferir. Pode falar mais de um lançamento na mesma frase.</div>
       ${SR?`<button class="msave" id="vozBtn" onclick="toggleVoz()" style="background:var(--blue)">🎤 Começar a falar</button>
       <div id="vozTranscript" class="hist-empty" style="min-height:20px"></div>`:'<div class="empty">Seu navegador não suporta reconhecimento de voz. Tente pelo Chrome.</div>'}
       <div id="extratoStatus"></div>
@@ -1396,7 +1402,14 @@ async function processarVoz(texto){
     const data=await res.json();
     if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
     extratoLancamentos=prepararRevisao((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:BANCOS.includes(l.banco)?l.banco:'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),cliente:normCliente(l.cliente),status:normStatus(l.status),desconto:0,hora:nowHora(),incluir:true})));
-    renderRevisaoExtrato();
+    if(!extratoLancamentos.length){
+      $('#extratoStatus').innerHTML='<div class="empty">Não consegui identificar nenhum lançamento nessa fala. Tente falar de novo.</div>';
+      return;
+    }
+    const nDup=extratoLancamentos.filter(l=>l.duplicado).length;
+    extratoOrigemVoz=true;
+    confirmarImportExtrato();
+    if(nDup)toast(`⚠️ ${nDup} lançamento(s) parecendo duplicata foram ignorados`);
   }catch(e){
     $('#extratoStatus').innerHTML=`<div class="empty">Erro ao interpretar: ${esc(e.message||String(e))}</div>`;
   }
