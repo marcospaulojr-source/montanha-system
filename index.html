@@ -647,7 +647,7 @@ function render(){
   const futuras=V.filter(v=>!['publicado','finalizado'].includes(v.estagio)&&v.entrega).map(v=>v.entrega).sort();
   const prox=futuras.find(d=>d>=todayISO())||futuras[0];
   $('#stats').innerHTML=`
-    <div class="stat"><div class="lab"><span class="dot" style="background:var(--blue)"></span>Em produção</div><div class="num">${prod.length}</div><div class="delta">agendado · roteiro · captação · edição · modificações · aprovação</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:var(--blue)"></span>Em produção</div><div class="num">${prod.length}</div><div class="delta">agendado · captação · edição · enviado p/ aprovação · modificações · aprovado</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Modificações</div><div class="num">${mods.length}</div><div class="delta">${mods.length?'aguardando ajuste':'nenhuma pendente'}</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--accent)"></span>Próxima entrega</div><div class="num" style="font-size:22px">${prox?fmtD(prox):'—'}</div><div class="delta">data de entrega mais próxima</div></div>`;
   $('#prodTag').textContent=Vf.length+' peças';
