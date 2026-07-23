@@ -187,9 +187,12 @@ button{font-family:inherit}
 .overlay.on{display:grid}
 .modal{background:var(--card);color:var(--text);border-radius:18px;max-width:540px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden;animation:pop .25s ease;max-height:92vh;overflow-y:auto}
 .modal.wide{max-width:900px}
-.extrato-row{display:grid;grid-template-columns:auto 122px 1fr 100px 92px 140px 130px 110px 100px;align-items:center;gap:6px;margin-bottom:8px}
+.extrato-row{display:grid;grid-template-columns:auto 122px 1fr 100px 92px 140px;align-items:center;gap:6px;margin-bottom:2px}
 .extrato-row input,.extrato-row select{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--text)}
-.extrato-head{display:grid;grid-template-columns:auto 122px 1fr 100px 92px 140px 130px 110px 100px;gap:6px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;padding:0 2px}
+.extrato-head{display:grid;grid-template-columns:auto 122px 1fr 100px 92px 140px;gap:6px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;padding:0 2px}
+.extrato-extra{display:flex;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px 26px}
+.extrato-extra label{display:flex;flex-direction:column;gap:2px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.extrato-extra select,.extrato-extra input{font-size:11.5px;padding:5px 6px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--text);font-family:inherit;min-width:110px}
 @media (max-width:760px){.extrato-row,.extrato-head{grid-template-columns:auto 1fr}.extrato-head{display:none}}
 @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 .mtop{padding:20px 24px 0;display:flex;align-items:center}
@@ -1221,6 +1224,8 @@ const EXTRATO_WORKER_URL='https://montanha-analisar-extrato.marcospaulojr.worker
 function normFormaPagamento(v){return Object.keys(PAY_METHODS).includes(v)&&v!=='cartao'?v:'outro'}
 function normCategoria(v){return v==='imposto'?'imposto':''}
 function normNatureza(v){return v==='pessoal'?'pessoal':'empresa'}
+function normStatus(v){return v==='pendente'?'pendente':'pago'}
+function normCliente(v){return(store.clients||[]).some(c=>c.brand.name===v)?v:''}
 async function processarExtratos(fileList){
   const files=[...(fileList||[])];
   if(!files.length)return;
@@ -1232,7 +1237,7 @@ async function processarExtratos(fileList){
       const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:files[i].type||'image/png'})});
       const data=await res.json();
       if(!res.ok||data.error)throw new Error(data.error||`Falha na análise da imagem ${i+1} (HTTP ${res.status})`);
-      todos=todos.concat((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),incluir:true})));
+      todos=todos.concat((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),cliente:normCliente(l.cliente),status:normStatus(l.status),desconto:0,hora:'',incluir:true})));
     }
     extratoLancamentos=prepararRevisao(todos);
     renderRevisaoExtrato();
@@ -1249,7 +1254,7 @@ function expandReservaPairs(lista){
     if(l.banco&&RESERVE_BANCOS.includes(l.banco)&&contaPadrao){
       const tipoPar=l.tipo==='saida'?'entrada':'saida';
       const descPar=l.tipo==='saida'?`Resgate da ${l.banco}`:`Depósito para ${l.banco}`;
-      expandido.push({data:l.data,descricao:descPar,valor:l.valor,tipo:tipoPar,banco:contaPadrao,formaPagamento:'transferencia',categoria:'',natureza:l.natureza||'empresa',incluir:true});
+      expandido.push({data:l.data,descricao:descPar,valor:l.valor,tipo:tipoPar,banco:contaPadrao,formaPagamento:'transferencia',categoria:'',natureza:l.natureza||'empresa',cliente:'',status:'pago',desconto:0,hora:l.hora||'',incluir:true});
     }
   });
   return expandido;
@@ -1302,22 +1307,34 @@ function extratoRow(l,i){
       <option value="saida" ${l.tipo==='saida'?'selected':''}>Saída</option>
     </select>
     <select onchange="extratoLancamentos[${i}].banco=this.value">${bancoOptions(l.banco||'')}</select>
-    <select onchange="extratoLancamentos[${i}].formaPagamento=this.value">${Object.entries(PAY_METHODS).filter(([k])=>k!=='cartao').map(([k,lab])=>`<option value="${k}" ${(l.formaPagamento||'outro')===k?'selected':''}>${lab}</option>`).join('')}</select>
-    <select onchange="extratoLancamentos[${i}].categoria=this.value">
+  </div>
+  <div class="extrato-extra">
+    <label>Cliente<select onchange="extratoLancamentos[${i}].cliente=this.value">${clienteOptions(l.cliente||'')}</select></label>
+    <label>Pagamento<select onchange="extratoLancamentos[${i}].formaPagamento=this.value">${Object.entries(PAY_METHODS).filter(([k])=>k!=='cartao').map(([k,lab])=>`<option value="${k}" ${(l.formaPagamento||'outro')===k?'selected':''}>${lab}</option>`).join('')}</select></label>
+    <label>Status<select onchange="extratoLancamentos[${i}].status=this.value">
+      <option value="pago" ${(l.status||'pago')==='pago'?'selected':''}>Pago</option>
+      <option value="pendente" ${l.status==='pendente'?'selected':''}>Pendente</option>
+    </select></label>
+    <label>Categoria<select onchange="extratoLancamentos[${i}].categoria=this.value">
       <option value="" ${!l.categoria?'selected':''}>Nenhuma</option>
       <option value="imposto" ${l.categoria==='imposto'?'selected':''}>🧾 Imposto</option>
-    </select>
-    <select onchange="extratoLancamentos[${i}].natureza=this.value">
+    </select></label>
+    <label>Natureza<select onchange="extratoLancamentos[${i}].natureza=this.value">
       <option value="empresa" ${(l.natureza||'empresa')==='empresa'?'selected':''}>🏢 Empresa</option>
       <option value="pessoal" ${l.natureza==='pessoal'?'selected':''}>👤 Pessoal</option>
-    </select>
+    </select></label>
+    <label>Desconto (R$)<input type="number" step="0.01" min="0" value="${l.desconto||''}" placeholder="0,00" onchange="extratoLancamentos[${i}].desconto=parseFloat(this.value)||0"></label>
+    <label>Hora<input type="time" value="${esc(l.hora||'')}" onchange="extratoLancamentos[${i}].hora=this.value"></label>
   </div>${warn}`;
 }
 function confirmarImportExtrato(){
   const selecionados=extratoLancamentos.filter(l=>l.incluir);
   if(!selecionados.length){toast('Nenhum lançamento selecionado');return}
   snapshotFinanceiro();
-  const novos=selecionados.map(l=>({id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:'',valor:l.valor,desconto:0,formaPagamento:normFormaPagamento(l.formaPagamento),banco:l.banco||'',vencimento:l.data,status:'pago',dataPagamento:l.data,categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza)}));
+  const novos=selecionados.map(l=>{
+    const status=normStatus(l.status);
+    return{id:uid(),tipo:l.tipo,descricao:l.descricao,cliente:l.cliente||'',valor:l.valor,desconto:l.desconto||0,formaPagamento:normFormaPagamento(l.formaPagamento),banco:l.banco||'',vencimento:l.data,hora:l.hora||'',status,dataPagamento:status==='pago'?l.data:'',categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza)};
+  });
   store.financeiro=(store.financeiro||[]).concat(novos);
   sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
   closeM();render();toast(`✓ ${novos.length} lançamento(s) adicionado(s)`);
@@ -1374,10 +1391,11 @@ async function processarVoz(texto){
   if(!$('#extratoStatus'))return;
   $('#extratoStatus').innerHTML='<div class="empty">🔎 Interpretando com IA...</div>';
   try{
-    const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:texto,hoje:todayISO(),contas:BANCOS})});
+    const clientes=(store.clients||[]).map(c=>c.brand.name);
+    const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:texto,hoje:todayISO(),contas:BANCOS,clientes})});
     const data=await res.json();
     if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
-    extratoLancamentos=prepararRevisao((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:BANCOS.includes(l.banco)?l.banco:'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),incluir:true})));
+    extratoLancamentos=prepararRevisao((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:BANCOS.includes(l.banco)?l.banco:'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),cliente:normCliente(l.cliente),status:normStatus(l.status),desconto:0,hora:nowHora(),incluir:true})));
     renderRevisaoExtrato();
   }catch(e){
     $('#extratoStatus').innerHTML=`<div class="empty">Erro ao interpretar: ${esc(e.message||String(e))}</div>`;
