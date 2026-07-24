@@ -1181,7 +1181,8 @@ function saveFin(id,isNew){
   f.natureza=$('#f_natureza')?$('#f_natureza').value:'empresa';
   f.origemVoz=false;
   finGroupFilter=f.status!=='pago'?(f.tipo==='saida'?'apagar':'areceber'):(f.tipo==='saida'?'saida':'entrada');
-  closeM();render();toast(`Lançamento salvo ✓ — agora em "${f.status!=='pago'?(f.tipo==='saida'?'A pagar':'A receber'):(f.tipo==='saida'?'Saídas':'Entradas')}"`);
+  finFilter='all';
+  closeM();render();toast(`Lançamento salvo ✓ — agora em "${f.status!=='pago'?(f.tipo==='saida'?'A pagar':'A receber'):(f.tipo==='saida'?'Saídas':'Entradas')}", aba "Todos os períodos"`);
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
 async function delFin(id){
