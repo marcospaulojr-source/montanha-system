@@ -1721,7 +1721,7 @@ function gerarPropostaPDF(id){
     .epills{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
     .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:7px 12px;font-size:13.5px}
     .epill .ck{color:#F58D33;font-weight:700}
-    .cond-inv{display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:start}
+    .cond-inv{display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:end}
     .cond h4{font-size:10px;letter-spacing:.18em;color:#9a9285;margin:0 0 4px}
     .cond p{margin:0 0 14px;font-size:14px}
     .inv{background:#171310;color:#FBFAF7;border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:9px}
@@ -1750,20 +1750,20 @@ function gerarPropostaPDF(id){
     </div>
     <div class="body">
       ${escopoHtml?`<div class="sec">
-        <div class="sec-h"><span class="sec-n mono">01</span><h2 class="sec-t">O que está incluso</h2></div>
+        <div class="sec-h"><h2 class="sec-t">O que está incluso</h2></div>
         <div class="epills">${escopoHtml}</div>
       </div>`:''}
       <div class="sec">
-        <div class="sec-h"><span class="sec-n mono">02</span><h2 class="sec-t">Serviços</h2></div>
+        <div class="sec-h"><h2 class="sec-t">Serviços</h2></div>
         ${itemRows(p.servicos)}
       </div>
       ${(p.equipamentos||[]).some(it=>it.desc)?`<div class="sec">
-        <div class="sec-h"><span class="sec-n mono">03</span><h2 class="sec-t">Equipamentos</h2></div>
+        <div class="sec-h"><h2 class="sec-t">Equipamentos</h2></div>
         ${itemRows(p.equipamentos)}
       </div>`:''}
       <div class="cond-inv">
         <div class="sec">
-          <div class="sec-h"><span class="sec-n mono">04</span><h2 class="sec-t">Condições</h2></div>
+          <div class="sec-h"><h2 class="sec-t">Condições</h2></div>
           <div class="cond">
             ${p.prazo?`<h4 class="mono">PRAZO DE ENTREGA</h4><p>${esc(p.prazo)}</p>`:''}
             ${p.pagamento?`<h4 class="mono">FORMA DE PAGAMENTO</h4><p>${esc(p.pagamento)}</p>`:''}
