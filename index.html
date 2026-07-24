@@ -1688,10 +1688,10 @@ function renderPropostas(){
 function gerarPropostaPDF(id){
   const p=store.propostas.find(x=>x.id===id);
   const c=calcProp(p);
-  const itemRows=(arr)=>(arr||[]).filter(it=>it.desc).map(it=>`
-    <div class="igrid">
-      <span>${esc(it.desc)}</span><span>${it.qtd}</span><span>${esc(it.unidade||'—')}</span><span>${it.valor?mask2((it.qtd||0)*it.valor):'Incluso'}</span>
-    </div>`).join('')||'<div class="empty">Nenhum item adicionado</div>';
+  const itemRows=(arr)=>{
+    const html=(arr||[]).filter(it=>it.desc).map(it=>`<div class="epill"><span class="ck">✓</span><span>${esc(it.desc)}</span></div>`).join('');
+    return html?`<div class="epills">${html}</div>`:'<div class="empty">Nenhum item adicionado</div>';
+  };
   const escopoHtml=(p.escopo||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
   const mask2=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const win=window.open('','_blank');
@@ -1717,8 +1717,6 @@ function gerarPropostaPDF(id){
     .sec-h{display:flex;align-items:baseline;gap:12px}
     .sec-n{font-size:11px;color:#F58D33}
     .sec-t{margin:0;font-size:17px;font-weight:600}
-    .ighead{display:grid;grid-template-columns:1fr 60px 100px 100px;gap:8px;font-size:10px;letter-spacing:.12em;color:#9a9285;padding:0 2px}
-    .igrid{display:grid;grid-template-columns:1fr 60px 100px 100px;gap:8px;padding:9px 2px;border-bottom:1px solid #EFEAE1;font-size:13.5px;align-items:center}
     .empty{font-size:13px;color:#9a9285;padding:6px 2px}
     .epills{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
     .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:7px 12px;font-size:13.5px}
@@ -1757,12 +1755,10 @@ function gerarPropostaPDF(id){
       </div>`:''}
       <div class="sec">
         <div class="sec-h"><span class="sec-n mono">02</span><h2 class="sec-t">Serviços</h2></div>
-        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>UNIDADE</span><span>SUBTOTAL</span></div>
         ${itemRows(p.servicos)}
       </div>
       ${(p.equipamentos||[]).some(it=>it.desc)?`<div class="sec">
         <div class="sec-h"><span class="sec-n mono">03</span><h2 class="sec-t">Equipamentos</h2></div>
-        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>UNIDADE</span><span>SUBTOTAL</span></div>
         ${itemRows(p.equipamentos)}
       </div>`:''}
       <div class="cond-inv">
@@ -1776,7 +1772,6 @@ function gerarPropostaPDF(id){
         </div>
         <div class="inv">
           <div class="inv-tag mono">INVESTIMENTO</div>
-          <div class="inv-row"><span>Subtotal</span><span class="mono">${mask2(c.subtotal)}</span></div>
           ${p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
           ${p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
           <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
