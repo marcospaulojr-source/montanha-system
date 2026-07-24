@@ -1704,12 +1704,12 @@ function gerarPropostaPDF(id){
     .sheet{max-width:860px;min-height:1123px;margin:28px auto 60px;background:#FBFAF7;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(25,21,18,.14);display:flex;flex-direction:column}
     .hero{background:#171310;color:#FBFAF7;padding:22px 44px 20px}
     .hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-    .hero-top img{height:46px}
+    .hero-top img{height:62px}
     .hero-sub{font-size:11px;color:#8d857b}
     .hero-co{text-align:right;font-size:11px;line-height:1.7;color:#8d857b}
     .hero-tag{margin-top:16px;font-size:12px;letter-spacing:.24em;color:#F58D33}
     .hero-title{margin-top:4px;font-weight:700;font-size:28px;line-height:1.08;letter-spacing:-0.02em}
-    .hero-meta{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(141,133,123,.35)}
+    .hero-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(141,133,123,.35)}
     .hero-meta .lab{font-size:10px;letter-spacing:.18em;color:#8d857b}
     .hero-meta .val{font-size:14px;font-weight:500;margin-top:4px}
     .body{flex:1;padding:20px 44px;display:flex;flex-direction:column;gap:20px}
@@ -1749,7 +1749,6 @@ function gerarPropostaPDF(id){
       <div class="hero-title">${esc(p.titulo||'Proposta')}</div>
       <div class="hero-meta">
         <div><div class="lab mono">CLIENTE</div><div class="val">${esc(p.cliente||'—')}</div></div>
-        <div><div class="lab mono">PROPOSTA</div><div class="val">${esc(p.numero||'—')}</div></div>
         <div><div class="lab mono">EMISSÃO</div><div class="val">${fmtD(p.data)}</div></div>
         <div><div class="lab mono">VALIDADE</div><div class="val">${p.validadeDias||30} dias</div></div>
       </div>
