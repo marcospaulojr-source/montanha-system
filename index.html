@@ -444,11 +444,23 @@ function finToDb(f){
   return {id:f.id,tipo:f.tipo,descricao:f.descricao||'',cliente:f.cliente||'',valor:f.valor||0,desconto:f.desconto||0,forma_pagamento:f.formaPagamento,banco:f.banco||'',vencimento:f.vencimento||null,status:f.status,data_pagamento:f.dataPagamento||null,hora:f.hora||null,categoria:f.categoria||null,natureza:f.natureza||'empresa',origem_voz:!!f.origemVoz};
 }
 function finLiquido(f){return(f.valor||0)-(f.desconto||0)}
+function normProdItens(arr){
+  return (arr||[]).map(it=>typeof it==='string'?{desc:it,qtd:1,valor:0}:{desc:it.desc||'',qtd:Number(it.qtd)||0,valor:Number(it.valor)||0});
+}
 function dbToProp(row){
-  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,servicos:row.servicos||[],equipamentos:row.equipamentos||[],investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
+  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',escopo:row.escopo||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
 }
 function propToDb(p){
-  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,servicos:p.servicos||[],equipamentos:p.equipamentos||[],investimento:p.investimento||0,observacoes:p.observacoes||''};
+  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',escopo:p.escopo||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento:p.investimento||0,observacoes:p.observacoes||''};
+}
+function calcProp(p){
+  const subServ=(p.servicos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
+  const subEquip=(p.equipamentos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
+  const subtotal=subServ+subEquip;
+  const descontoVal=subtotal*(p.desconto||0)/100;
+  const impostoVal=(subtotal-descontoVal)*(p.imposto||0)/100;
+  const total=subtotal-descontoVal+impostoVal;
+  return{subServ,subEquip,subtotal,descontoVal,impostoVal,total};
 }
 async function fetchAll(){
   const [{data:clientsRows},{data:videoRows},{data:finRows},{data:siRows},{data:cfgRows},{data:propRows}]=await Promise.all([
@@ -1503,46 +1515,101 @@ function renderClientesCRM(){
     </div>`).join(''):'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
 }
 function addProposta(){
-  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,servicos:[...DEFAULT_SERVICOS],equipamentos:[...DEFAULT_EQUIPAMENTOS],investimento:0,observacoes:''};
+  const numero=`Nº ${new Date().getFullYear()}-${String((store.propostas||[]).length+1).padStart(3,'0')}`;
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,escopo:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
   modalDraft={type:'proposta',id:p.id};
 }
-function openProp(id){
-  const p=store.propostas.find(x=>x.id===id);
-  openModal(`<div class="mtop"><h3>Proposta de orçamento</h3><span class="x" onclick="closeM()">✕</span></div>
+let propDraft=null;
+function propItemRow(key,it,i){
+  return `<div class="frow" style="align-items:center;gap:6px">
+    <input value="${esc(it.desc)}" placeholder="Descrição" onchange="propDraft.${key}[${i}].desc=this.value" style="flex:1">
+    <input type="number" min="0" value="${it.qtd}" placeholder="Qtd" onchange="propDraft.${key}[${i}].qtd=parseFloat(this.value)||0;updPropTotalDraft()" style="width:64px">
+    <input type="number" min="0" step="0.01" value="${it.valor||''}" placeholder="Valor unit." onchange="propDraft.${key}[${i}].valor=parseFloat(this.value)||0;updPropTotalDraft()" style="width:100px">
+    <button class="findel" onclick="rmPropItem('${key}',${i})" title="Remover">🗑️</button>
+  </div>`;
+}
+function rmPropItem(key,i){propDraft[key].splice(i,1);renderPropModal();updPropTotalDraft()}
+function addPropItem(key){propDraft[key].push({desc:'',qtd:1,valor:0});renderPropModal()}
+function rmPropEscopo(i){propDraft.escopo.splice(i,1);renderPropModal()}
+function addPropEscopo(){(propDraft.escopo=propDraft.escopo||[]).push('');renderPropModal()}
+function updPropTotalDraft(){
+  const c=calcProp(propDraft);
+  const set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
+  set('#p_subtotal_display',fmtBRL(c.subtotal));
+  set('#p_desconto_display','−'+fmtBRL(c.descontoVal));
+  set('#p_imposto_display','+'+fmtBRL(c.impostoVal));
+  set('#p_total_display',fmtBRL(c.total));
+}
+function renderPropModal(){
+  const p=propDraft;
+  openModalWide(`<div class="mtop"><h3>Proposta de orçamento</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="fld"><label>Cliente</label><select id="p_cliente">${clienteOptions(p.cliente)}</select></div>
-      <div class="fld"><label>E-mail do cliente</label><input type="email" id="p_email" value="${esc(p.clienteEmail)}" placeholder="cliente@email.com"></div>
-      <div class="fld"><label>Título da proposta</label><input id="p_titulo" value="${esc(p.titulo)}" placeholder="Ex: Produção de 4 vídeos Reels"></div>
       <div class="frow">
-        <div class="fld"><label>Data</label><input type="date" id="p_data" value="${p.data||''}"></div>
-        <div class="fld"><label>Validade (dias)</label><input type="number" min="1" id="p_validade" value="${p.validadeDias||30}"></div>
+        <div class="fld"><label>Cliente</label><select id="p_cliente" onchange="propDraft.cliente=this.value">${clienteOptions(p.cliente)}</select></div>
+        <div class="fld"><label>Número da proposta</label><input id="p_numero" value="${esc(p.numero||'')}" onchange="propDraft.numero=this.value"></div>
       </div>
-      <div class="fld"><label>Serviços (um por linha)</label><textarea id="p_servicos" rows="6">${esc((p.servicos||[]).join('\n'))}</textarea></div>
-      <div class="fld"><label>Equipamentos (um por linha)</label><textarea id="p_equip" rows="6">${esc((p.equipamentos||[]).join('\n'))}</textarea></div>
-      <div class="fld"><label>Investimento (R$)</label><input type="number" step="0.01" min="0" id="p_valor" value="${p.investimento||''}"></div>
-      <div class="fld"><label>Observações (opcional)</label><textarea id="p_obs" placeholder="Ex: Condições de pagamento, prazos...">${esc(p.observacoes)}</textarea></div>
-      <button class="msave" onclick="saveProp('${id}')">Salvar proposta</button>
+      <div class="fld"><label>E-mail do cliente</label><input type="email" id="p_email" value="${esc(p.clienteEmail)}" placeholder="cliente@email.com" onchange="propDraft.clienteEmail=this.value"></div>
+      <div class="fld"><label>Título da proposta</label><input id="p_titulo" value="${esc(p.titulo)}" placeholder="Ex: Produção de 4 vídeos Reels" onchange="propDraft.titulo=this.value"></div>
+      <div class="frow">
+        <div class="fld"><label>Data</label><input type="date" id="p_data" value="${p.data||''}" onchange="propDraft.data=this.value"></div>
+        <div class="fld"><label>Validade (dias)</label><input type="number" min="1" id="p_validade" value="${p.validadeDias||30}" onchange="propDraft.validadeDias=parseInt(this.value)||30"></div>
+      </div>
+
+      <div class="fld"><label>O que está incluso (checklist)</label>
+        ${(p.escopo||[]).map((e,i)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" onchange="propDraft.escopo[${i}]=this.value" style="flex:1"><button class="findel" onclick="rmPropEscopo(${i})" title="Remover">🗑️</button></div>`).join('')}
+        <button class="eyebtn" onclick="addPropEscopo()">+ Adicionar item</button>
+      </div>
+
+      <div class="fld"><label>Serviços (descrição · qtd · valor unitário)</label>
+        ${(p.servicos||[]).map((it,i)=>propItemRow('servicos',it,i)).join('')}
+        <button class="eyebtn" onclick="addPropItem('servicos')">+ Adicionar serviço</button>
+      </div>
+
+      <div class="fld"><label>Equipamentos (descrição · qtd · valor unitário)</label>
+        ${(p.equipamentos||[]).map((it,i)=>propItemRow('equipamentos',it,i)).join('')}
+        <button class="eyebtn" onclick="addPropItem('equipamentos')">+ Adicionar equipamento</button>
+      </div>
+
+      <div class="frow">
+        <div class="fld"><label>Desconto (%)</label><input type="number" min="0" max="100" id="p_desconto" value="${p.desconto||''}" onchange="propDraft.desconto=parseFloat(this.value)||0;updPropTotalDraft()"></div>
+        <div class="fld"><label>Impostos (%)</label><input type="number" min="0" max="100" id="p_imposto" value="${p.imposto||''}" onchange="propDraft.imposto=parseFloat(this.value)||0;updPropTotalDraft()"></div>
+      </div>
+      <div class="frow">
+        <div class="fld"><label>Prazo de entrega</label><input id="p_prazo" value="${esc(p.prazo||'')}" placeholder="Ex: Entrega digital em até 24h" onchange="propDraft.prazo=this.value"></div>
+        <div class="fld"><label>Forma de pagamento</label><input id="p_pagamento" value="${esc(p.pagamento||'')}" placeholder="Ex: 50% na confirmação · 50% na entrega" onchange="propDraft.pagamento=this.value"></div>
+      </div>
+      <div class="fld"><label>Observações (opcional)</label><textarea id="p_obs" placeholder="Anotações internas, condições extras...">${esc(p.observacoes)}</textarea></div>
+
+      <div style="background:#171310;color:#FBFAF7;border-radius:12px;padding:14px 18px;margin:6px 0;font-size:13px">
+        <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Subtotal</span><span id="p_subtotal_display">${fmtBRL(calcProp(p).subtotal)}</span></div>
+        <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Desconto</span><span id="p_desconto_display">−${fmtBRL(calcProp(p).descontoVal)}</span></div>
+        <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Impostos</span><span id="p_imposto_display">+${fmtBRL(calcProp(p).impostoVal)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(251,250,247,.18);font-weight:800;font-size:18px;color:#F58D33"><span>Total</span><span id="p_total_display">${fmtBRL(calcProp(p).total)}</span></div>
+      </div>
+
+      <button class="msave" onclick="saveProp('${p.id}')">Salvar proposta</button>
       <div class="frow" style="margin-top:10px">
-        <button class="msave" style="background:#0F766E" onclick="gerarPropostaPDF('${id}')">📄 Gerar PDF</button>
-        <button class="msave" style="background:#2563EB" onclick="enviarPropostaEmail('${id}')">📧 Enviar por e-mail</button>
+        <button class="msave" style="background:#0F766E" onclick="gerarPropostaPDF('${p.id}')">📄 Gerar PDF</button>
+        <button class="msave" style="background:#2563EB" onclick="enviarPropostaEmail('${p.id}')">📧 Enviar por e-mail</button>
       </div>
-      <button class="mdel" onclick="delProp('${id}')">Excluir</button>
+      <button class="mdel" onclick="delProp('${p.id}')">Excluir</button>
     </div>`);
 }
+function openProp(id){
+  const orig=store.propostas.find(x=>x.id===id);
+  propDraft=JSON.parse(JSON.stringify(orig));
+  renderPropModal();
+}
 function saveProp(id){
-  const p=store.propostas.find(x=>x.id===id);
-  p.cliente=$('#p_cliente').value.trim();
-  p.clienteEmail=$('#p_email').value.trim();
-  p.titulo=$('#p_titulo').value.trim();
-  p.data=$('#p_data').value||todayISO();
-  p.validadeDias=parseInt($('#p_validade').value)||30;
-  p.servicos=$('#p_servicos').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  p.equipamentos=$('#p_equip').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  p.investimento=parseFloat($('#p_valor').value)||0;
-  p.observacoes=$('#p_obs').value.trim();
+  const p=propDraft;
+  const c=calcProp(p);
+  p.investimento=c.total;
+  const idx=store.propostas.findIndex(x=>x.id===id);
+  if(idx>=0)store.propostas[idx]=p;
+  propDraft=null;
   modalDraft=null;
   closeM();renderPropostas();toast('Proposta salva ✓');
   sb.from('propostas').update(propToDb(p)).eq('id',id).then(sbErr);
@@ -1579,8 +1646,8 @@ function renderPropostas(){
         <span class="finval" style="color:${color}">${fmtBRL(p.investimento)}</span>
         <button class="findel" onclick="delPropQuick('${p.id}',event)" title="Excluir proposta">🗑️</button></div>
       ${(p.servicos&&p.servicos.length)||(p.equipamentos&&p.equipamentos.length)?`<div style="padding-left:52px">
-        ${p.servicos&&p.servicos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</span><br>${p.servicos.map(s=>chip(s,'#FFF1E6','#B45309')).join('')}</div>`:''}
-        ${p.equipamentos&&p.equipamentos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Equipamentos</span><br>${p.equipamentos.map(s=>chip(s,'#EFF6FF','#1D4ED8')).join('')}</div>`:''}
+        ${p.servicos&&p.servicos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</span><br>${p.servicos.map(s=>chip(s.desc||s,'#FFF1E6','#B45309')).join('')}</div>`:''}
+        ${p.equipamentos&&p.equipamentos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Equipamentos</span><br>${p.equipamentos.map(s=>chip(s.desc||s,'#EFF6FF','#1D4ED8')).join('')}</div>`:''}
       </div>`:''}
       <div style="padding-left:52px;margin-top:10px;display:flex;gap:8px">
         <button style="background:#0F766E;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="event.stopPropagation();gerarPropostaPDF('${p.id}')">📄 Gerar PDF</button>
@@ -1618,55 +1685,103 @@ function renderPropostas(){
 }
 function gerarPropostaPDF(id){
   const p=store.propostas.find(x=>x.id===id);
-  const rows=(arr)=>(arr||[]).map(s=>`<div class="row"><span class="ck">✓</span><span>${esc(s)}</span></div>`).join('')||'<div class="row" style="color:#94A3B8">Nenhum item adicionado</div>';
+  const c=calcProp(p);
+  const itemRows=(arr)=>(arr||[]).filter(it=>it.desc).map(it=>`
+    <div class="igrid">
+      <span>${esc(it.desc)}</span><span>${it.qtd}</span><span>${it.valor?mask2(it.valor):'—'}</span><span>${it.valor?mask2((it.qtd||0)*it.valor):'Incluso'}</span>
+    </div>`).join('')||'<div class="empty">Nenhum item adicionado</div>';
+  const escopoHtml=(p.escopo||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
+  const mask2=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const win=window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta - ${esc(p.cliente)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *{box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#1E293B;margin:0;background:#fff}
-    .wrap{max-width:820px;margin:0 auto;padding:48px 56px 30px}
-    .hd{display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:3px solid #EF7B24;padding-bottom:22px;margin-bottom:34px}
-    .hd img{height:64px}
-    .hd .co{text-align:right}
-    .hd .co .name{font-weight:800;font-size:14px;color:#EF7B24}
-    .hd .co .site{font-size:11.5px;color:#64748B;font-weight:600;margin-top:4px}
-    .hero{background:linear-gradient(135deg,#EF7B24,#D9601A);border-radius:14px;padding:26px 30px;color:#fff;margin-bottom:34px}
-    .hero .tag{font-size:11px;letter-spacing:2px;font-weight:700;opacity:.85;text-transform:uppercase}
-    .hero h1{font-size:22px;margin:6px 0 4px;font-weight:800}
-    .hero .cli{font-size:14px;font-weight:600;opacity:.95}
-    .cols{display:flex;gap:28px;margin-bottom:30px}
-    .col{flex:1;min-width:0}
-    .col h2{font-size:12.5px;letter-spacing:1.5px;text-transform:uppercase;color:#EF7B24;font-weight:800;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #FDE4CC}
-    .row{display:flex;align-items:flex-start;gap:8px;font-size:13.5px;font-weight:600;color:#334155;margin-bottom:9px}
-    .row .ck{color:#EF7B24;font-weight:900}
-    .obs{background:#F8FAFC;border-left:3px solid #EF7B24;padding:14px 18px;border-radius:0 8px 8px 0;font-size:12.5px;color:#475569;margin-bottom:30px;white-space:pre-wrap}
-    .inv{display:flex;justify-content:space-between;align-items:center;background:#FFF7ED;border:1.5px solid #FDE4CC;border-radius:14px;padding:22px 28px;margin-bottom:20px}
-    .inv .lab{font-size:12px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:1px}
-    .inv .val{font-size:32px;font-weight:900;color:#EF7B24}
-    .inv .meta{text-align:right;font-size:11.5px;color:#78716C;font-weight:600;line-height:1.5}
-    .foot{margin-top:40px;padding-top:18px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:11px;color:#64748B}
-    @media print{.wrap{padding:20px 40px}}
+    body{font-family:'Space Grotesk',sans-serif;color:#191512;margin:0;background:#E9E5DE}
+    .mono{font-family:'IBM Plex Mono',monospace}
+    .sheet{max-width:860px;margin:28px auto 60px;background:#FBFAF7;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(25,21,18,.14)}
+    .hero{background:#171310;color:#FBFAF7;padding:22px 44px 20px}
+    .hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+    .hero-top img{height:46px}
+    .hero-sub{font-size:11px;color:#8d857b}
+    .hero-co{text-align:right;font-size:11px;line-height:1.7;color:#8d857b}
+    .hero-tag{margin-top:16px;font-size:12px;letter-spacing:.24em;color:#F58D33}
+    .hero-title{margin-top:4px;font-weight:700;font-size:28px;line-height:1.08;letter-spacing:-0.02em}
+    .hero-meta{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(141,133,123,.35)}
+    .hero-meta .lab{font-size:10px;letter-spacing:.18em;color:#8d857b}
+    .hero-meta .val{font-size:14px;font-weight:500;margin-top:4px}
+    .body{padding:20px 44px;display:flex;flex-direction:column;gap:20px}
+    .sec{display:flex;flex-direction:column;gap:10px}
+    .sec-h{display:flex;align-items:baseline;gap:12px}
+    .sec-n{font-size:11px;color:#F58D33}
+    .sec-t{margin:0;font-size:17px;font-weight:600}
+    .ighead{display:grid;grid-template-columns:1fr 60px 100px 100px;gap:8px;font-size:10px;letter-spacing:.12em;color:#9a9285;padding:0 2px}
+    .igrid{display:grid;grid-template-columns:1fr 60px 100px 100px;gap:8px;padding:9px 2px;border-bottom:1px solid #EFEAE1;font-size:13.5px;align-items:center}
+    .empty{font-size:13px;color:#9a9285;padding:6px 2px}
+    .epills{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+    .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:7px 12px;font-size:13.5px}
+    .epill .ck{color:#F58D33;font-weight:700}
+    .cond-inv{display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:start}
+    .cond h4{font-size:10px;letter-spacing:.18em;color:#9a9285;margin:0 0 4px}
+    .cond p{margin:0 0 14px;font-size:14px}
+    .inv{background:#171310;color:#FBFAF7;border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:9px}
+    .inv-tag{font-size:11px;letter-spacing:.22em;color:#F58D33}
+    .inv-row{display:flex;justify-content:space-between;font-size:13px;color:#b8b1a6}
+    .inv-total{border-top:1px solid rgba(251,250,247,.18);padding-top:14px;display:flex;flex-direction:column;gap:2px}
+    .inv-total .lab{font-size:12px;color:#b8b1a6}
+    .inv-total .val{font-size:30px;font-weight:700;letter-spacing:-0.02em;color:#F58D33}
+    .foot{display:flex;justify-content:space-between;gap:16px;padding:12px 44px;border-top:1px solid #E0DACF;font-size:10.5px;color:#9a9285}
+    @media print{body{background:#fff}.sheet{box-shadow:none;margin:0 auto;max-width:none}}
   </style></head><body>
-  <div class="wrap">
-    <div class="hd">
-      <img src="${MONTANHA_LOGO_B64}">
-      <div class="co"><div class="site">www.montanhafilmes.com.br</div></div>
-    </div>
+  <div class="sheet">
     <div class="hero">
-      <div class="tag">Proposta comercial</div>
-      <h1>${esc(p.titulo||'Proposta')}</h1>
-      <div class="cli">Para: ${esc(p.cliente||'—')}</div>
+      <div class="hero-top">
+        <div><img src="${MONTANHA_LOGO_B64}"><div class="hero-sub mono">produtora audiovisual</div></div>
+        <div class="hero-co mono">(22) 98846-1845 · @montanhafilmes<br>www.montanhafilmes.com.br</div>
+      </div>
+      <div class="hero-tag mono">PROPOSTA COMERCIAL</div>
+      <div class="hero-title">${esc(p.titulo||'Proposta')}</div>
+      <div class="hero-meta">
+        <div><div class="lab mono">CLIENTE</div><div class="val">${esc(p.cliente||'—')}</div></div>
+        <div><div class="lab mono">PROPOSTA</div><div class="val">${esc(p.numero||'—')}</div></div>
+        <div><div class="lab mono">EMISSÃO</div><div class="val">${fmtD(p.data)}</div></div>
+        <div><div class="lab mono">VALIDADE</div><div class="val">${p.validadeDias||30} dias</div></div>
+      </div>
     </div>
-    <div class="cols">
-      <div class="col"><h2>Serviços inclusos</h2>${rows(p.servicos)}</div>
-      <div class="col"><h2>Equipamentos utilizados</h2>${rows(p.equipamentos)}</div>
+    <div class="body">
+      <div class="sec">
+        <div class="sec-h"><span class="sec-n mono">01</span><h2 class="sec-t">Serviços</h2></div>
+        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>VALOR UNIT.</span><span>SUBTOTAL</span></div>
+        ${itemRows(p.servicos)}
+      </div>
+      ${escopoHtml?`<div class="sec">
+        <div class="sec-h"><span class="sec-n mono">02</span><h2 class="sec-t">O que está incluso</h2></div>
+        <div class="epills">${escopoHtml}</div>
+      </div>`:''}
+      ${(p.equipamentos||[]).some(it=>it.desc)?`<div class="sec">
+        <div class="sec-h"><span class="sec-n mono">03</span><h2 class="sec-t">Equipamentos</h2></div>
+        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>VALOR UNIT.</span><span>SUBTOTAL</span></div>
+        ${itemRows(p.equipamentos)}
+      </div>`:''}
+      <div class="cond-inv">
+        <div class="sec">
+          <div class="sec-h"><span class="sec-n mono">04</span><h2 class="sec-t">Condições</h2></div>
+          <div class="cond">
+            ${p.prazo?`<h4 class="mono">PRAZO DE ENTREGA</h4><p>${esc(p.prazo)}</p>`:''}
+            ${p.pagamento?`<h4 class="mono">FORMA DE PAGAMENTO</h4><p>${esc(p.pagamento)}</p>`:''}
+            ${p.observacoes?`<h4 class="mono">OBSERVAÇÕES</h4><p style="white-space:pre-wrap">${esc(p.observacoes)}</p>`:''}
+          </div>
+        </div>
+        <div class="inv">
+          <div class="inv-tag mono">INVESTIMENTO</div>
+          <div class="inv-row"><span>Subtotal</span><span class="mono">${mask2(c.subtotal)}</span></div>
+          ${p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
+          ${p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
+          <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
+        </div>
+      </div>
     </div>
-    ${p.observacoes?`<div class="obs"><strong>Observações:</strong><br>${esc(p.observacoes).replace(/\n/g,'<br>')}</div>`:''}
-    <div class="inv">
-      <div><div class="lab">Investimento</div><div class="val">${fmtBRL(p.investimento)}</div></div>
-      <div class="meta">Emitida em ${fmtD(p.data)}<br>Validade de ${p.validadeDias} dias</div>
-    </div>
-    <div class="foot"><span>22 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
+    <div class="foot"><span>Montanha Filmes · (22) 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
   </div>
   </body></html>`);
   win.document.close();
@@ -1676,8 +1791,9 @@ function gerarPropostaPDF(id){
 function enviarPropostaEmail(id){
   const p=store.propostas.find(x=>x.id===id);
   if(!p.clienteEmail){toast('⚠️ Informe o e-mail do cliente antes de enviar');return;}
-  const assunto=`Proposta - ${p.titulo||'Orçamento'} - Montanha Filmes`;
-  const corpo=`Olá, ${p.cliente}!\n\nSegue nossa proposta:\n\nSERVIÇOS:\n${(p.servicos||[]).join('\n')}\n\nEQUIPAMENTOS:\n${(p.equipamentos||[]).join('\n')}\n\nINVESTIMENTO: ${fmtBRL(p.investimento)}\nValidade: ${p.validadeDias} dias\n\nObs: gere e anexe o PDF da proposta antes de enviar.\n\nAtt,\nMontanha Filmes`;
+  const c=calcProp(p);
+  const assunto=`Proposta ${p.numero||''} - ${p.titulo||'Orçamento'} - Montanha Filmes`;
+  const corpo=`Olá, ${p.cliente}!\n\nSegue nossa proposta:\n\nSERVIÇOS:\n${(p.servicos||[]).filter(it=>it.desc).map(it=>`- ${it.desc} (qtd ${it.qtd})`).join('\n')}\n\nEQUIPAMENTOS:\n${(p.equipamentos||[]).filter(it=>it.desc).map(it=>`- ${it.desc} (qtd ${it.qtd})`).join('\n')}\n\nINVESTIMENTO: ${fmtBRL(c.total)}\nValidade: ${p.validadeDias} dias\n\nObs: gere e anexe o PDF da proposta antes de enviar.\n\nAtt,\nMontanha Filmes`;
   window.location.href=`mailto:${encodeURIComponent(p.clienteEmail)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
 }
 function siRowHtml(si){
