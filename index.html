@@ -1548,9 +1548,17 @@ function renderClientesCRM(){
     </div>`).join(''):'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
 }
 function addProposta(){
-  const maiorNumero=(store.propostas||[]).reduce((max,p)=>{const m=String(p.numero||'').match(/^Nº\s*(\d+)/);const n=m?parseInt(m[1],10):0;return n>max?n:max},0);
+  const maiorSeq=(store.propostas||[]).reduce((max,p)=>{
+    const digits=String(p.numero||'').replace(/\D/g,'');
+    if(digits.length<5)return max;
+    const seq=parseInt(digits.slice(-5),10);
+    return seq>max?seq:max;
+  },0);
   const hoje=new Date();
-  const numero=`Nº ${String(maiorNumero+1).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
+  const dd=String(hoje.getDate()).padStart(2,'0');
+  const mm=String(hoje.getMonth()+1).padStart(2,'0');
+  const yy=String(hoje.getFullYear()).slice(-2);
+  const numero=`Nº ${dd}${mm}${yy}${String(maiorSeq+1).padStart(5,'0')}`;
   const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,status:'rascunho',escopo:[],equipe:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimentoManual:null,investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
