@@ -448,10 +448,10 @@ function normProdItens(arr){
   return (arr||[]).map(it=>typeof it==='string'?{desc:it,qtd:1,unidade:'',valor:0}:{desc:it.desc||'',qtd:Number(it.qtd)||0,unidade:it.unidade||'',valor:Number(it.valor)||0});
 }
 function dbToProp(row){
-  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',escopo:row.escopo||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
+  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',status:row.status||'rascunho',escopo:row.escopo||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
 }
 function propToDb(p){
-  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',escopo:p.escopo||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento:p.investimento||0,observacoes:p.observacoes||''};
+  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',status:p.status||'rascunho',escopo:p.escopo||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento:p.investimento||0,observacoes:p.observacoes||''};
 }
 function calcProp(p){
   const subServ=(p.servicos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
@@ -652,6 +652,19 @@ function renderProdCharts(V){
   const snap=stageSnapshot(V).filter(s=>s.n>0);
   drawChart('chartStageDist',{type:'doughnut',data:{labels:snap.map(s=>s.lab),datasets:[{data:snap.map(s=>s.n),backgroundColor:snap.map(s=>STAGE_COLOR[s.k])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:th.text,boxWidth:10,font:{size:11}}}}}});
 }
+function prazoStatus(v){
+  if(!v.entrega||['publicado','finalizado'].includes(v.estagio))return null;
+  const hoje=todayISO();
+  if(v.entrega<hoje)return'atrasado';
+  const diffDias=Math.round((new Date(v.entrega)-new Date(hoje))/86400000);
+  return diffDias<=2?'proximo':null;
+}
+function prazoBadge(v){
+  const st=prazoStatus(v);
+  if(st==='atrasado')return'<span class="stagechip" style="background:#DC2626">⚠️ Atrasado</span>';
+  if(st==='proximo')return'<span class="stagechip" style="background:#D97706">⏰ Vence em breve</span>';
+  return'';
+}
 function render(){
   const c=cur();applyBrand();renderClientSelect();renderResumoGeral();
   const V=c.videos;
@@ -665,16 +678,19 @@ function render(){
   // próxima entrega (data futura mais próxima entre os não concluídos)
   const futuras=V.filter(v=>!['publicado','finalizado'].includes(v.estagio)&&v.entrega).map(v=>v.entrega).sort();
   const prox=futuras.find(d=>d>=todayISO())||futuras[0];
+  const emRisco=V.filter(v=>prazoStatus(v));
+  const atrasados=emRisco.filter(v=>prazoStatus(v)==='atrasado').length;
   $('#stats').innerHTML=`
     <div class="stat"><div class="lab"><span class="dot" style="background:var(--blue)"></span>Em produção</div><div class="num">${prod.length}</div><div class="delta">agendado · captação · edição · enviado p/ aprovação · modificações · aprovado</div></div>
     <div class="stat"><div class="lab"><span class="dot" style="background:#E11D48"></span>Modificações</div><div class="num">${mods.length}</div><div class="delta">${mods.length?'aguardando ajuste':'nenhuma pendente'}</div></div>
-    <div class="stat"><div class="lab"><span class="dot" style="background:var(--accent)"></span>Próxima entrega</div><div class="num" style="font-size:22px">${prox?fmtD(prox):'—'}</div><div class="delta">data de entrega mais próxima</div></div>`;
+    <div class="stat"><div class="lab"><span class="dot" style="background:var(--accent)"></span>Próxima entrega</div><div class="num" style="font-size:22px">${prox?fmtD(prox):'—'}</div><div class="delta">data de entrega mais próxima</div></div>
+    <div class="stat"><div class="lab"><span class="dot" style="background:${emRisco.length?'#DC2626':'var(--muted)'}"></span>⚠️ Prazos em risco</div><div class="num">${emRisco.length}</div><div class="delta">${atrasados?atrasados+' atrasado(s)':emRisco.length?'vencendo em até 2 dias':'nenhum prazo em risco'}</div></div>`;
   $('#prodTag').textContent=Vf.length+' peças';
   $('#dashList').innerHTML=Vf.length?Vf.map(v=>`
     <div class="prow" onclick="openV('${v.id}')">
       <div class="prow-top"><div class="thumb" style="${c.brand.logoImg?'':'background:linear-gradient(135deg,'+clienteColor(v.id)+','+clienteColor(v.id)+'CC)'}">${thumbInner('▶')}</div>
         <div class="info">${v.cliente?`<div class="cliname">${esc(v.cliente)}</div>`:''}<div class="t">${esc(v.titulo)}</div><div class="m">Entrega ${fmtD(v.entrega)}${v.editor?' · 👤 '+esc(v.editor):''}${v.enviado?' · 📤 Enviado em '+fmtD(v.dataEnvio):''}</div></div>
-        <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
+        <span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span>${prazoBadge(v)}${v.enviado?'<span class="stagechip" style="background:var(--green)">Enviado</span>':''}<span class="stagechip" style="background:${STAGE_COLOR[v.estagio]}">${shortLab(v.estagio)}</span></div>
       ${miniStepper(v)}</div>`).join('')
     :'<div class="empty">Nenhuma tarefa. Clique em “＋ Nova tarefa”.</div>';
   $('#modsN').textContent=mods.length;
@@ -694,9 +710,10 @@ function render(){
   $('#board').innerHTML=STAGES.filter(([k])=>k!=='finalizado').map(([k,lab])=>{
     const vs=Vf.filter(v=>v.estagio===k);
     return `<div class="col" data-stage="${k}"><h3><span class="stagedot" style="background:${STAGE_COLOR[k]}"></span>${lab}<span class="ct">${vs.length}</span></h3>
-      ${vs.map(v=>`<div class="vcard stage-${k}" draggable="true" data-id="${v.id}" onclick="openV('${v.id}')">
+      ${vs.map(v=>`<div class="vcard stage-${k}" draggable="true" data-id="${v.id}" onclick="openV('${v.id}')"${prazoStatus(v)?` style="border-left:4px solid ${prazoStatus(v)==='atrasado'?'#DC2626':'#D97706'}"`:''}>
         <div class="vhead">${c.brand.logoImg?`<img class="vlogo" src="${c.brand.logoImg}">`:''}<div class="vt">${esc(v.titulo)}</div></div>
         ${v.cliente?`<div class="vcli">${esc(v.cliente)}${v.editor?' · 👤 '+esc(v.editor):''}</div>`:v.editor?`<div class="vcli">👤 ${esc(v.editor)}</div>`:''}
+        ${prazoBadge(v)?`<div style="margin-bottom:6px">${prazoBadge(v)}</div>`:''}
         <div class="vf"><span class="chip c-${v.objetivo}">${OBJ[v.objetivo]}</span><span class="vd">${fmtD(v.entrega)}${curStageTime(v)?' · 🕐 '+curStageTime(v):''}</span></div>${miniDots(v)}</div>`).join('')}</div>`;
   }).join('');
   bindDrag();
@@ -1528,7 +1545,7 @@ function renderClientesCRM(){
 }
 function addProposta(){
   const numero=`Nº ${new Date().getFullYear()}-${String((store.propostas||[]).length+1).padStart(3,'0')}`;
-  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,escopo:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimento:0,observacoes:''};
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,status:'rascunho',escopo:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
@@ -1564,6 +1581,12 @@ function renderPropModal(){
       <div class="frow">
         <div class="fld"><label>Cliente</label><select id="p_cliente" onchange="propDraft.cliente=this.value">${clienteOptions(p.cliente)}</select></div>
         <div class="fld"><label>Número da proposta</label><input id="p_numero" value="${esc(p.numero||'')}" onchange="propDraft.numero=this.value"></div>
+        <div class="fld"><label>Status</label><select id="p_status" onchange="propDraft.status=this.value">
+          <option value="rascunho" ${(p.status||'rascunho')==='rascunho'?'selected':''}>📝 Rascunho</option>
+          <option value="enviada" ${p.status==='enviada'?'selected':''}>📤 Enviada</option>
+          <option value="aceita" ${p.status==='aceita'?'selected':''}>✅ Aceita</option>
+          <option value="recusada" ${p.status==='recusada'?'selected':''}>❌ Recusada</option>
+        </select></div>
       </div>
       <div class="fld"><label>E-mail do cliente</label><input type="email" id="p_email" value="${esc(p.clienteEmail)}" placeholder="cliente@email.com" onchange="propDraft.clienteEmail=this.value"></div>
       <div class="fld"><label>Título da proposta</label><input id="p_titulo" value="${esc(p.titulo)}" placeholder="Ex: Produção de 4 vídeos Reels" onchange="propDraft.titulo=this.value"></div>
@@ -1653,10 +1676,12 @@ function renderPropostas(){
   const list=$('#propList');if(!list)return;
   $('#propN').textContent=P.length;
   const chip=(txt,bg,fg)=>`<span style="display:inline-block;background:${bg};color:${fg};font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;margin:2px 4px 0 0">${esc(txt)}</span>`;
+  const PROP_STATUS={rascunho:['📝 Rascunho','#94A3B8'],enviada:['📤 Enviada','#2563EB'],aceita:['✅ Aceita','#16A34A'],recusada:['❌ Recusada','#DC2626']};
   const cardHtml=(p,color)=>`
     <div class="prow" onclick="openProp('${p.id}')" style="flex-direction:column;align-items:stretch">
       <div class="prow-top"><div class="thumb" style="background:linear-gradient(135deg,${color},${color}CC)">🧾</div>
         <div class="info"><div class="t">${esc(p.titulo||'(sem título)')}</div><div class="m">${p.data?fmtD(p.data):''}${p.validadeDias?' · Validade '+p.validadeDias+' dias':''}</div></div>
+        <span class="stagechip" style="background:${(PROP_STATUS[p.status]||PROP_STATUS.rascunho)[1]}">${(PROP_STATUS[p.status]||PROP_STATUS.rascunho)[0]}</span>
         <span class="finval" style="color:${color}">${fmtBRL(p.investimento)}</span>
         <button class="findel" onclick="delPropQuick('${p.id}',event)" title="Excluir proposta">🗑️</button></div>
       ${(p.servicos&&p.servicos.length)||(p.equipamentos&&p.equipamentos.length)?`<div style="padding-left:52px">
