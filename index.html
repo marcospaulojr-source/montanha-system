@@ -448,12 +448,16 @@ function normProdItens(arr){
   return (arr||[]).map(it=>typeof it==='string'?{desc:it,qtd:1,unidade:'',valor:0}:{desc:it.desc||'',qtd:Number(it.qtd)||0,unidade:it.unidade||'',valor:Number(it.valor)||0});
 }
 function dbToProp(row){
-  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',status:row.status||'rascunho',escopo:row.escopo||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
+  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',status:row.status||'rascunho',escopo:row.escopo||[],equipe:row.equipe||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimentoManual:row.investimento_manual==null?null:Number(row.investimento_manual),investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
 }
 function propToDb(p){
-  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',status:p.status||'rascunho',escopo:p.escopo||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento:p.investimento||0,observacoes:p.observacoes||''};
+  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',status:p.status||'rascunho',escopo:p.escopo||[],equipe:p.equipe||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento_manual:(p.investimentoManual==null||p.investimentoManual==='')?null:Number(p.investimentoManual),investimento:p.investimento||0,observacoes:p.observacoes||''};
 }
 function calcProp(p){
+  if(p.investimentoManual!=null&&p.investimentoManual!==''){
+    const v=Number(p.investimentoManual)||0;
+    return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,total:v};
+  }
   const subServ=(p.servicos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
   const subEquip=(p.equipamentos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
   const subtotal=subServ+subEquip;
@@ -1544,8 +1548,9 @@ function renderClientesCRM(){
     </div>`).join(''):'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
 }
 function addProposta(){
-  const numero=`Nº ${new Date().getFullYear()}-${String((store.propostas||[]).length+1).padStart(3,'0')}`;
-  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,status:'rascunho',escopo:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimento:0,observacoes:''};
+  const maiorNumero=(store.propostas||[]).reduce((max,p)=>{const n=parseInt(String(p.numero||'').replace(/\D/g,''),10);return isFinite(n)&&n>max?n:max},0);
+  const numero=`Nº ${maiorNumero+1}`;
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,status:'rascunho',escopo:[],equipe:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimentoManual:null,investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
@@ -1565,6 +1570,8 @@ function rmPropItem(key,i){propDraft[key].splice(i,1);renderPropModal();updPropT
 function addPropItem(key){propDraft[key].push({desc:'',qtd:1,valor:0});renderPropModal()}
 function rmPropEscopo(i){propDraft.escopo.splice(i,1);renderPropModal()}
 function addPropEscopo(){(propDraft.escopo=propDraft.escopo||[]).push('');renderPropModal()}
+function rmPropEquipe(i){propDraft.equipe.splice(i,1);renderPropModal()}
+function addPropEquipe(){(propDraft.equipe=propDraft.equipe||[]).push('');renderPropModal()}
 function updPropTotalDraft(){
   const c=calcProp(propDraft);
   const set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
@@ -1572,6 +1579,7 @@ function updPropTotalDraft(){
   set('#p_desconto_display','−'+fmtBRL(c.descontoVal));
   set('#p_imposto_display','+'+fmtBRL(c.impostoVal));
   set('#p_total_display',fmtBRL(c.total));
+  const rows=$('#p_calc_rows_display');if(rows)rows.style.display=propDraft.investimentoManual!=null?'none':'block';
 }
 function renderPropModal(){
   const p=propDraft;
@@ -1610,6 +1618,11 @@ function renderPropModal(){
         <button class="eyebtn" onclick="addPropItem('equipamentos')">+ Adicionar equipamento</button>
       </div>
 
+      <div class="fld"><label>Equipe (opcional — ex: Diretor de imagens, Cinegrafista, Ajudante)</label>
+        ${(p.equipe||[]).map((e,i)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" placeholder="Ex: Diretor de imagens" onchange="propDraft.equipe[${i}]=this.value" style="flex:1"><button class="findel" onclick="rmPropEquipe(${i})" title="Remover">🗑️</button></div>`).join('')}
+        <button class="eyebtn" onclick="addPropEquipe()">+ Adicionar integrante</button>
+      </div>
+
       <div class="frow">
         <div class="fld"><label>Desconto (%)</label><input type="number" min="0" max="100" id="p_desconto" value="${p.desconto||''}" onchange="propDraft.desconto=parseFloat(this.value)||0;updPropTotalDraft()"></div>
         <div class="fld"><label>Impostos (%)</label><input type="number" min="0" max="100" id="p_imposto" value="${p.imposto||''}" onchange="propDraft.imposto=parseFloat(this.value)||0;updPropTotalDraft()"></div>
@@ -1620,10 +1633,16 @@ function renderPropModal(){
       </div>
       <div class="fld"><label>Observações (opcional)</label><textarea id="p_obs" placeholder="Anotações internas, condições extras...">${esc(p.observacoes)}</textarea></div>
 
+      <div class="fld"><label>Valor total manual (opcional)</label>
+        <input type="number" min="0" step="0.01" id="p_valor_manual" value="${p.investimentoManual!=null?p.investimentoManual:''}" placeholder="Deixe em branco pra calcular pelos itens (qtd × valor unit.)" onchange="propDraft.investimentoManual=this.value===''?null:parseFloat(this.value)||0;updPropTotalDraft()">
+      </div>
+
       <div style="background:#171310;color:#FBFAF7;border-radius:12px;padding:14px 18px;margin:6px 0;font-size:13px">
-        <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Subtotal</span><span id="p_subtotal_display">${fmtBRL(calcProp(p).subtotal)}</span></div>
-        <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Desconto</span><span id="p_desconto_display">−${fmtBRL(calcProp(p).descontoVal)}</span></div>
-        <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Impostos</span><span id="p_imposto_display">+${fmtBRL(calcProp(p).impostoVal)}</span></div>
+        <div id="p_calc_rows_display" style="display:${p.investimentoManual!=null?'none':'block'}">
+          <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Subtotal</span><span id="p_subtotal_display">${fmtBRL(calcProp(p).subtotal)}</span></div>
+          <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Desconto</span><span id="p_desconto_display">−${fmtBRL(calcProp(p).descontoVal)}</span></div>
+          <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Impostos</span><span id="p_imposto_display">+${fmtBRL(calcProp(p).impostoVal)}</span></div>
+        </div>
         <div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(251,250,247,.18);font-weight:800;font-size:18px;color:#F58D33"><span>Total</span><span id="p_total_display">${fmtBRL(calcProp(p).total)}</span></div>
       </div>
 
@@ -1730,6 +1749,7 @@ function gerarPropostaPDF(id){
     return html?`<div class="epills">${html}</div>`:'<div class="empty">Nenhum item adicionado</div>';
   };
   const escopoHtml=(p.escopo||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
+  const equipeHtml=(p.equipe||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
   const mask2=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const win=window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta - ${esc(p.cliente)}</title>
@@ -1803,6 +1823,10 @@ function gerarPropostaPDF(id){
         <div class="sec-h"><h2 class="sec-t">Equipamentos</h2></div>
         ${itemRows(p.equipamentos)}
       </div>`:''}
+      ${equipeHtml?`<div class="sec">
+        <div class="sec-h"><h2 class="sec-t">Equipe</h2></div>
+        <div class="epills">${equipeHtml}</div>
+      </div>`:''}
       ${(p.prazo||p.pagamento||p.observacoes)?`<div class="sec">
         <div class="sec-h"><h2 class="sec-t">Condições</h2></div>
         <div class="cond">
@@ -1815,8 +1839,8 @@ function gerarPropostaPDF(id){
     <div class="invwrap">
       <div class="inv">
         <div class="inv-tag mono">INVESTIMENTO</div>
-        ${p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
-        ${p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
+        ${p.investimentoManual==null&&p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
+        ${p.investimentoManual==null&&p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
         <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
       </div>
     </div>
