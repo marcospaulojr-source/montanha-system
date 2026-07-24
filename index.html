@@ -1701,7 +1701,7 @@ function gerarPropostaPDF(id){
     *{box-sizing:border-box}
     body{font-family:'Space Grotesk',sans-serif;color:#191512;margin:0;background:#E9E5DE}
     .mono{font-family:'IBM Plex Mono',monospace}
-    .sheet{max-width:860px;margin:28px auto 60px;background:#FBFAF7;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(25,21,18,.14)}
+    .sheet{max-width:860px;min-height:1123px;margin:28px auto 60px;background:#FBFAF7;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(25,21,18,.14);display:flex;flex-direction:column}
     .hero{background:#171310;color:#FBFAF7;padding:22px 44px 20px}
     .hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
     .hero-top img{height:46px}
@@ -1712,7 +1712,7 @@ function gerarPropostaPDF(id){
     .hero-meta{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(141,133,123,.35)}
     .hero-meta .lab{font-size:10px;letter-spacing:.18em;color:#8d857b}
     .hero-meta .val{font-size:14px;font-weight:500;margin-top:4px}
-    .body{padding:20px 44px;display:flex;flex-direction:column;gap:20px}
+    .body{flex:1;padding:20px 44px;display:flex;flex-direction:column;gap:20px}
     .sec{display:flex;flex-direction:column;gap:10px}
     .sec-h{display:flex;align-items:baseline;gap:12px}
     .sec-n{font-size:11px;color:#F58D33}
@@ -1721,10 +1721,10 @@ function gerarPropostaPDF(id){
     .epills{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
     .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:7px 12px;font-size:13.5px}
     .epill .ck{color:#F58D33;font-weight:700}
-    .cond-inv{display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:end}
     .cond h4{font-size:10px;letter-spacing:.18em;color:#9a9285;margin:0 0 4px}
     .cond p{margin:0 0 14px;font-size:14px}
-    .inv{background:#171310;color:#FBFAF7;border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:9px}
+    .invwrap{padding:0 44px 20px;display:flex;justify-content:flex-end}
+    .inv{width:320px;background:#171310;color:#FBFAF7;border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:9px}
     .inv-tag{font-size:11px;letter-spacing:.22em;color:#F58D33}
     .inv-row{display:flex;justify-content:space-between;font-size:13px;color:#b8b1a6}
     .inv-total{border-top:1px solid rgba(251,250,247,.18);padding-top:14px;display:flex;flex-direction:column;gap:2px}
@@ -1761,21 +1761,21 @@ function gerarPropostaPDF(id){
         <div class="sec-h"><h2 class="sec-t">Equipamentos</h2></div>
         ${itemRows(p.equipamentos)}
       </div>`:''}
-      <div class="cond-inv">
-        <div class="sec">
-          <div class="sec-h"><h2 class="sec-t">Condições</h2></div>
-          <div class="cond">
-            ${p.prazo?`<h4 class="mono">PRAZO DE ENTREGA</h4><p>${esc(p.prazo)}</p>`:''}
-            ${p.pagamento?`<h4 class="mono">FORMA DE PAGAMENTO</h4><p>${esc(p.pagamento)}</p>`:''}
-            ${p.observacoes?`<h4 class="mono">OBSERVAÇÕES</h4><p style="white-space:pre-wrap">${esc(p.observacoes)}</p>`:''}
-          </div>
+      ${(p.prazo||p.pagamento||p.observacoes)?`<div class="sec">
+        <div class="sec-h"><h2 class="sec-t">Condições</h2></div>
+        <div class="cond">
+          ${p.prazo?`<h4 class="mono">PRAZO DE ENTREGA</h4><p>${esc(p.prazo)}</p>`:''}
+          ${p.pagamento?`<h4 class="mono">FORMA DE PAGAMENTO</h4><p>${esc(p.pagamento)}</p>`:''}
+          ${p.observacoes?`<h4 class="mono">OBSERVAÇÕES</h4><p style="white-space:pre-wrap">${esc(p.observacoes)}</p>`:''}
         </div>
-        <div class="inv">
-          <div class="inv-tag mono">INVESTIMENTO</div>
-          ${p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
-          ${p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
-          <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
-        </div>
+      </div>`:''}
+    </div>
+    <div class="invwrap">
+      <div class="inv">
+        <div class="inv-tag mono">INVESTIMENTO</div>
+        ${p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
+        ${p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
+        <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
       </div>
     </div>
     <div class="foot"><span>Montanha Filmes · (22) 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
