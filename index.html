@@ -1749,7 +1749,7 @@ function gerarPropostaPDF(id){
       <div class="hero-title">${esc(p.titulo||'Proposta')}</div>
       <div class="hero-meta">
         <div><div class="lab mono">CLIENTE</div><div class="val">${esc(p.cliente||'—')}</div></div>
-        <div><div class="lab mono">EMISSÃO</div><div class="val">${fmtD(p.data)}</div></div>
+        <div><div class="lab mono">EMISSÃO</div><div class="val">${p.data?p.data.split('-').reverse().join('/'):'—'}</div></div>
         <div><div class="lab mono">VALIDADE</div><div class="val">${p.validadeDias||30} dias</div></div>
       </div>
     </div>
