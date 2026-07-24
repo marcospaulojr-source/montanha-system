@@ -1036,7 +1036,24 @@ function historyHtml(v){
 }
 function openModal(html){$('#modal').innerHTML=html;$('#overlay').classList.add('on')}
 function openModalWide(html){$('#modal').classList.add('wide');openModal(html)}
-function closeM(){$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}}
+let modalDraft=null;
+function descartarModalDraft(){
+  if(!modalDraft)return;
+  const d=modalDraft;modalDraft=null;
+  if(d.type==='video'){
+    const c=store.clients.find(x=>x.id===d.clientId);
+    if(c)c.videos=c.videos.filter(x=>x.id!==d.id);
+    sb.from('videos').delete().eq('id',d.id).then(sbErr);
+  }else if(d.type==='financeiro'){
+    store.financeiro=(store.financeiro||[]).filter(x=>x.id!==d.id);
+    sb.from('financeiro').delete().eq('id',d.id).then(sbErr);
+  }else if(d.type==='proposta'){
+    store.propostas=(store.propostas||[]).filter(x=>x.id!==d.id);
+    sb.from('propostas').delete().eq('id',d.id).then(sbErr);
+  }
+  render();
+}
+function closeM(){descartarModalDraft();$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}}
 function confirmDialog(msg){
   return new Promise(resolve=>{
     const prevHTML=$('#modal').innerHTML;
@@ -1092,6 +1109,7 @@ function addVideo(){
   const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',descricaoServico:'',historico:[{estagio:'agendado',data:todayISO(),hora:nowHora()}]};
   cur().videos.push(v);openV(v.id);
   sb.from('videos').insert(videoToDb(v,cur().id)).then(sbErr);
+  modalDraft={type:'video',clientId:cur().id,id:v.id};
 }
 function toggleModsFld(est){$('#fld_mods').style.display=est==='modificacoes'?'':'none'}
 function toggleEnviadoFld(ck){$('#fld_enviado_data').style.display=ck?'':'none'}
@@ -1107,13 +1125,14 @@ function saveV(id){
   v.enviado=$('#e_enviado').checked;
   v.dataEnvio=v.enviado?($('#e_dataenvio').value||todayISO()):'';
   logStage(v,v.estagio);
+  modalDraft=null;
   closeM();render();toast('Vídeo salvo ✓');
   sb.from('videos').update(videoToDb(v,cur().id)).eq('id',id).then(sbErr);
 }
 async function delV(id){
   if(!(await confirmDialog('Excluir este vídeo?')))return;
   const c=cur();const v=c.videos.find(x=>x.id===id);
-  const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then(sbErr)};
+  const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);modalDraft=null;closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then(sbErr)};
   if(v)gcalDeleteEvent(v,finish);else finish();
 }
 function approve(id){const v=cur().videos.find(x=>x.id===id);v.estagio='aprovacao';logStage(v,v.estagio);closeM();render();go('dash');toast('✓ Aprovado');sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',id).then(sbErr)}
@@ -1128,6 +1147,7 @@ function addFinanceiro(){
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
   sb.from('financeiro').insert(finToDb(f)).then(sbErr);
+  modalDraft={type:'financeiro',id:f.id};
 }
 function openFin(id,isNew){
   const f=store.financeiro.find(x=>x.id===id);
@@ -1180,6 +1200,7 @@ function saveFin(id,isNew){
   f.categoria=$('#f_categoria')?$('#f_categoria').value:'';
   f.natureza=$('#f_natureza')?$('#f_natureza').value:'empresa';
   f.origemVoz=false;
+  modalDraft=null;
   finGroupFilter=f.status!=='pago'?(f.tipo==='saida'?'apagar':'areceber'):(f.tipo==='saida'?'saida':'entrada');
   finFilter='all';
   closeM();render();toast(`Lançamento salvo ✓ — agora em "${f.status!=='pago'?(f.tipo==='saida'?'A pagar':'A receber'):(f.tipo==='saida'?'Saídas':'Entradas')}", aba "Todos os períodos"`);
@@ -1189,6 +1210,7 @@ async function delFin(id){
   if(!(await confirmDialog('Excluir este lançamento?')))return;
   snapshotFinanceiro();
   store.financeiro=store.financeiro.filter(x=>x.id!==id);
+  modalDraft=null;
   closeM();render();toast('Lançamento excluído');
   sb.from('financeiro').delete().eq('id',id).then(sbErr);
 }
@@ -1485,6 +1507,7 @@ function addProposta(){
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
+  modalDraft={type:'proposta',id:p.id};
 }
 function openProp(id){
   const p=store.propostas.find(x=>x.id===id);
@@ -1520,13 +1543,23 @@ function saveProp(id){
   p.equipamentos=$('#p_equip').value.split('\n').map(s=>s.trim()).filter(Boolean);
   p.investimento=parseFloat($('#p_valor').value)||0;
   p.observacoes=$('#p_obs').value.trim();
+  modalDraft=null;
   closeM();renderPropostas();toast('Proposta salva ✓');
   sb.from('propostas').update(propToDb(p)).eq('id',id).then(sbErr);
 }
 async function delProp(id){
   if(!(await confirmDialog('Excluir esta proposta?')))return;
   store.propostas=store.propostas.filter(x=>x.id!==id);
+  modalDraft=null;
   closeM();renderPropostas();toast('Proposta excluída');
+  sb.from('propostas').delete().eq('id',id).then(sbErr);
+}
+async function delPropQuick(id,ev){
+  if(ev)ev.stopPropagation();
+  if(!(await confirmDialog('Excluir esta proposta?')))return;
+  store.propostas=store.propostas.filter(x=>x.id!==id);
+  if(modalDraft&&modalDraft.type==='proposta'&&modalDraft.id===id)modalDraft=null;
+  renderPropostas();toast('Proposta excluída');
   sb.from('propostas').delete().eq('id',id).then(sbErr);
 }
 let propExpanded=new Set();
@@ -1543,7 +1576,8 @@ function renderPropostas(){
     <div class="prow" onclick="openProp('${p.id}')" style="flex-direction:column;align-items:stretch">
       <div class="prow-top"><div class="thumb" style="background:linear-gradient(135deg,${color},${color}CC)">🧾</div>
         <div class="info"><div class="t">${esc(p.titulo||'(sem título)')}</div><div class="m">${p.data?fmtD(p.data):''}${p.validadeDias?' · Validade '+p.validadeDias+' dias':''}</div></div>
-        <span class="finval" style="color:${color}">${fmtBRL(p.investimento)}</span></div>
+        <span class="finval" style="color:${color}">${fmtBRL(p.investimento)}</span>
+        <button class="findel" onclick="delPropQuick('${p.id}',event)" title="Excluir proposta">🗑️</button></div>
       ${(p.servicos&&p.servicos.length)||(p.equipamentos&&p.equipamentos.length)?`<div style="padding-left:52px">
         ${p.servicos&&p.servicos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Serviços</span><br>${p.servicos.map(s=>chip(s,'#FFF1E6','#B45309')).join('')}</div>`:''}
         ${p.equipamentos&&p.equipamentos.length?`<div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Equipamentos</span><br>${p.equipamentos.map(s=>chip(s,'#EFF6FF','#1D4ED8')).join('')}</div>`:''}
