@@ -1161,6 +1161,9 @@ function toggleVencLabel(tipo){
   const p=$('#f_status_pendente');if(p)p.textContent='Pendente ('+(tipo==='saida'?'a pagar':'a receber')+')';
 }
 function saveFin(id,isNew){
+  const novoStatus=$('#f_status').value;
+  const novoBanco=$('#f_banco').value.trim();
+  if(novoStatus==='pago'&&!novoBanco){alert('Selecione a conta/banco antes de marcar como Pago — sem isso o valor não entra no saldo de nenhuma conta.');return}
   if(!isNew)snapshotFinanceiro();
   const f=store.financeiro.find(x=>x.id===id);
   f.tipo=$('#f_tipo').value;
@@ -1169,15 +1172,16 @@ function saveFin(id,isNew){
   f.valor=parseFloat($('#f_valor').value)||0;
   f.desconto=parseFloat($('#f_desconto').value)||0;
   f.formaPagamento=$('#f_forma').value;
-  f.banco=$('#f_banco').value.trim();
+  f.banco=novoBanco;
   f.vencimento=$('#f_venc').value||'';
   f.hora=$('#f_hora')?$('#f_hora').value||'':'';
-  f.status=$('#f_status').value;
+  f.status=novoStatus;
   f.dataPagamento=f.status==='pago'?(f.vencimento||todayISO()):'';
   f.categoria=$('#f_categoria')?$('#f_categoria').value:'';
   f.natureza=$('#f_natureza')?$('#f_natureza').value:'empresa';
   f.origemVoz=false;
-  closeM();render();toast('Lançamento salvo ✓');
+  finGroupFilter=f.status!=='pago'?(f.tipo==='saida'?'apagar':'areceber'):(f.tipo==='saida'?'saida':'entrada');
+  closeM();render();toast(`Lançamento salvo ✓ — agora em "${f.status!=='pago'?(f.tipo==='saida'?'A pagar':'A receber'):(f.tipo==='saida'?'Saídas':'Entradas')}"`);
   sb.from('financeiro').update(finToDb(f)).eq('id',id).then(sbErr);
 }
 async function delFin(id){
