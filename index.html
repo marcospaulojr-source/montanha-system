@@ -1065,7 +1065,19 @@ function descartarModalDraft(){
   }
   render();
 }
-function closeM(){descartarModalDraft();$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}}
+function modalDraftHasContent(){
+  if(!modalDraft)return false;
+  if(modalDraft.type==='financeiro'){const d=$('#f_desc'),v=$('#f_valor');return !!(d&&d.value.trim())||!!(v&&parseFloat(v.value)>0)}
+  if(modalDraft.type==='video'){const t=$('#e_titulo');return !!(t&&t.value.trim())}
+  if(modalDraft.type==='proposta'){const cli=$('#p_cliente'),t=$('#p_titulo');return !!(cli&&cli.value.trim())||!!(t&&t.value.trim()&&t.value.trim()!=='Produção de vídeos')}
+  return false;
+}
+async function closeM(){
+  if(modalDraft&&modalDraftHasContent()){
+    if(!(await confirmDialog('Esse lançamento ainda não foi salvo. Fechar mesmo assim e descartar o que foi preenchido?')))return;
+  }
+  descartarModalDraft();$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}
+}
 function confirmDialog(msg){
   return new Promise(resolve=>{
     const prevHTML=$('#modal').innerHTML;
