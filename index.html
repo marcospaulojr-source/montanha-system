@@ -445,7 +445,7 @@ function finToDb(f){
 }
 function finLiquido(f){return(f.valor||0)-(f.desconto||0)}
 function normProdItens(arr){
-  return (arr||[]).map(it=>typeof it==='string'?{desc:it,qtd:1,valor:0}:{desc:it.desc||'',qtd:Number(it.qtd)||0,valor:Number(it.valor)||0});
+  return (arr||[]).map(it=>typeof it==='string'?{desc:it,qtd:1,unidade:'',valor:0}:{desc:it.desc||'',qtd:Number(it.qtd)||0,unidade:it.unidade||'',valor:Number(it.valor)||0});
 }
 function dbToProp(row){
   return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',escopo:row.escopo||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
@@ -1516,7 +1516,7 @@ function renderClientesCRM(){
 }
 function addProposta(){
   const numero=`Nº ${new Date().getFullYear()}-${String((store.propostas||[]).length+1).padStart(3,'0')}`;
-  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,escopo:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimento:0,observacoes:''};
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,escopo:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
@@ -1527,6 +1527,7 @@ function propItemRow(key,it,i){
   return `<div class="frow" style="align-items:center;gap:6px">
     <input value="${esc(it.desc)}" placeholder="Descrição" onchange="propDraft.${key}[${i}].desc=this.value" style="flex:1">
     <input type="number" min="0" value="${it.qtd}" placeholder="Qtd" onchange="propDraft.${key}[${i}].qtd=parseFloat(this.value)||0;updPropTotalDraft()" style="width:64px">
+    <input list="unidSug" value="${esc(it.unidade||'')}" placeholder="Unidade" onchange="propDraft.${key}[${i}].unidade=this.value" style="width:90px">
     <input type="number" min="0" step="0.01" value="${it.valor||''}" placeholder="Valor unit." onchange="propDraft.${key}[${i}].valor=parseFloat(this.value)||0;updPropTotalDraft()" style="width:100px">
     <button class="findel" onclick="rmPropItem('${key}',${i})" title="Remover">🗑️</button>
   </div>`;
@@ -1546,6 +1547,7 @@ function updPropTotalDraft(){
 function renderPropModal(){
   const p=propDraft;
   openModalWide(`<div class="mtop"><h3>Proposta de orçamento</h3><span class="x" onclick="closeM()">✕</span></div>
+    <datalist id="unidSug"><option value="diária"><option value="hora"><option value="unidade"><option value="pacote"><option value="mês"><option value="incluso"></datalist>
     <div class="mb">
       <div class="frow">
         <div class="fld"><label>Cliente</label><select id="p_cliente" onchange="propDraft.cliente=this.value">${clienteOptions(p.cliente)}</select></div>
@@ -1563,12 +1565,12 @@ function renderPropModal(){
         <button class="eyebtn" onclick="addPropEscopo()">+ Adicionar item</button>
       </div>
 
-      <div class="fld"><label>Serviços (descrição · qtd · valor unitário)</label>
+      <div class="fld"><label>Serviços (descrição · qtd · unidade · valor unitário)</label>
         ${(p.servicos||[]).map((it,i)=>propItemRow('servicos',it,i)).join('')}
         <button class="eyebtn" onclick="addPropItem('servicos')">+ Adicionar serviço</button>
       </div>
 
-      <div class="fld"><label>Equipamentos (descrição · qtd · valor unitário)</label>
+      <div class="fld"><label>Equipamentos (descrição · qtd · unidade · valor unitário)</label>
         ${(p.equipamentos||[]).map((it,i)=>propItemRow('equipamentos',it,i)).join('')}
         <button class="eyebtn" onclick="addPropItem('equipamentos')">+ Adicionar equipamento</button>
       </div>
@@ -1688,7 +1690,7 @@ function gerarPropostaPDF(id){
   const c=calcProp(p);
   const itemRows=(arr)=>(arr||[]).filter(it=>it.desc).map(it=>`
     <div class="igrid">
-      <span>${esc(it.desc)}</span><span>${it.qtd}</span><span>${it.valor?mask2(it.valor):'—'}</span><span>${it.valor?mask2((it.qtd||0)*it.valor):'Incluso'}</span>
+      <span>${esc(it.desc)}</span><span>${it.qtd}</span><span>${esc(it.unidade||'—')}</span><span>${it.valor?mask2((it.qtd||0)*it.valor):'Incluso'}</span>
     </div>`).join('')||'<div class="empty">Nenhum item adicionado</div>';
   const escopoHtml=(p.escopo||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
   const mask2=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -1749,18 +1751,18 @@ function gerarPropostaPDF(id){
       </div>
     </div>
     <div class="body">
-      <div class="sec">
-        <div class="sec-h"><span class="sec-n mono">01</span><h2 class="sec-t">Serviços</h2></div>
-        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>VALOR UNIT.</span><span>SUBTOTAL</span></div>
-        ${itemRows(p.servicos)}
-      </div>
       ${escopoHtml?`<div class="sec">
-        <div class="sec-h"><span class="sec-n mono">02</span><h2 class="sec-t">O que está incluso</h2></div>
+        <div class="sec-h"><span class="sec-n mono">01</span><h2 class="sec-t">O que está incluso</h2></div>
         <div class="epills">${escopoHtml}</div>
       </div>`:''}
+      <div class="sec">
+        <div class="sec-h"><span class="sec-n mono">02</span><h2 class="sec-t">Serviços</h2></div>
+        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>UNIDADE</span><span>SUBTOTAL</span></div>
+        ${itemRows(p.servicos)}
+      </div>
       ${(p.equipamentos||[]).some(it=>it.desc)?`<div class="sec">
         <div class="sec-h"><span class="sec-n mono">03</span><h2 class="sec-t">Equipamentos</h2></div>
-        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>VALOR UNIT.</span><span>SUBTOTAL</span></div>
+        <div class="ighead mono"><span>DESCRIÇÃO</span><span>QTD</span><span>UNIDADE</span><span>SUBTOTAL</span></div>
         ${itemRows(p.equipamentos)}
       </div>`:''}
       <div class="cond-inv">
