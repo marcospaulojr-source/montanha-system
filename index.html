@@ -1414,8 +1414,11 @@ function confirmarImportExtrato(){
   store.financeiro=(store.financeiro||[]).concat(novos);
   sb.from('financeiro').insert(novos.map(finToDb)).then(sbErr);
   extratoOrigemVoz=false;
+  const tiposPagos=[...new Set(novos.filter(n=>n.status==='pago').map(n=>n.tipo))];
+  if(tiposPagos.length===1)finGroupFilter=tiposPagos[0]==='saida'?'saida':'entrada';
+  finFilter='all';
   closeM();render();
-  toast(origemVoz?`🎤 ${novos.length} lançamento(s) adicionado(s) por voz — confira no financeiro`:`✓ ${novos.length} lançamento(s) adicionado(s)`);
+  toast(origemVoz?`🎤 ${novos.length} lançamento(s) adicionado(s) por voz — confira no financeiro`:`✓ ${novos.length} lançamento(s) adicionado(s), aba "Todos os períodos"`);
 }
 
 // ---- lançar por voz (Web Speech API + IA via o mesmo Worker) ----
