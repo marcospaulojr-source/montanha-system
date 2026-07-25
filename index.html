@@ -1308,7 +1308,7 @@ async function processarExtratos(fileList){
     for(let i=0;i<files.length;i++){
       $('#extratoStatus').innerHTML=`<div class="empty">🔎 Analisando imagem ${i+1} de ${files.length} com IA...</div>`;
       const image=await fileToBase64(files[i]);
-      const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:files[i].type||'image/png'})});
+      const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:files[i].type||'image/png',hoje:todayISO(),banco:extratoBanco||''})});
       const data=await res.json();
       if(!res.ok||data.error)throw new Error(data.error||`Falha na análise da imagem ${i+1} (HTTP ${res.status})`);
       todos=todos.concat((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),cliente:normCliente(l.cliente),status:normStatus(l.status),desconto:0,hora:'',incluir:true})));

@@ -28,8 +28,22 @@ const CAMPOS_EXTRAS = `- "formaPagamento" deve ser exatamente um destes valores:
   "vou pagar", "tenho que pagar", "ainda não recebi", "fica pra receber dia 20"), e "pago" em todos os
   outros casos (é o padrão — quando a pessoa fala no passado, tipo "paguei"/"recebi", é "pago").`;
 
-function imagePrompt() {
-  return `Você recebeu a imagem de um extrato bancário (print de tela ou foto).
+function imagePrompt(hojeISO, banco) {
+  const ontemISO = new Date(new Date(hojeISO + "T12:00:00Z").getTime() - 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const bancoLine = banco
+    ? `Esse extrato é da conta "${banco}". `
+    : "";
+  const naturezaHint = banco && /\bpf\b|pessoa\s*f[ií]sica|pessoal/i.test(banco)
+    ? ` Como essa conta é PESSOA FÍSICA (PF), o padrão de "natureza" deve ser "pessoal" (só use "empresa"
+  se o lançamento claramente for um pagamento/recebimento do negócio, tipo cliente pagando um serviço
+  ou pagamento de fornecedor/imposto da empresa).`
+    : banco && /\bpj\b|pessoa\s*jur[ií]dica|empresa/i.test(banco)
+    ? ` Como essa conta é PESSOA JURÍDICA (PJ), o padrão de "natureza" deve ser "empresa" (só use "pessoal"
+  se o lançamento claramente for um gasto/recebimento pessoal do dono do negócio).`
+    : "";
+  return `Você recebeu a imagem de um extrato bancário (print de tela ou foto). ${bancoLine}Hoje é ${hojeISO}.
 Extraia todos os lançamentos (transações) visíveis e devolva SOMENTE um JSON válido,
 sem markdown, sem texto antes ou depois, no formato:
 
@@ -41,13 +55,17 @@ Regras:
 - "valor" é sempre positivo (o tipo já indica a direção).
 - "data" no formato YYYY-MM-DD. Se o ano não aparecer no extrato, use o ano atual (${new Date().getFullYear()}).
 - LAYOUT COMUM DE APP DE BANCO (ex: Nubank): os lançamentos costumam vir agrupados por dia, com a DATA
-  aparecendo como um cabeçalho separado acima do grupo (à esquerda, sozinha, tipo "13 JUL" ou "Hoje"),
-  e cada lançamento embaixo dela mostra o nome do estabelecimento/pessoa com um HORÁRIO logo abaixo
-  (tipo "14:32"). Não confunda esse horário com a data — a data de cada lançamento é a do cabeçalho do
-  grupo mais próximo acima dele, não o horário. Se dois cabeçalhos de data diferentes aparecerem na
-  imagem, cada lançamento pertence ao cabeçalho de data que está IMEDIATAMENTE acima dele na imagem.
+  aparecendo como um cabeçalho separado acima do grupo (à esquerda, sozinha, tipo "13 JUL", "Hoje" ou
+  "Ontem"), e cada lançamento embaixo dela mostra o nome do estabelecimento/pessoa com um HORÁRIO logo
+  abaixo (tipo "14:32"). Não confunda esse horário com a data — a data de cada lançamento é a do
+  cabeçalho do grupo mais próximo acima dele, não o horário. Se dois cabeçalhos de data diferentes
+  aparecerem na imagem, cada lançamento pertence ao cabeçalho de data que está IMEDIATAMENTE acima dele
+  na imagem.
+- Resolva cabeçalhos de data relativos usando hoje=${hojeISO}: um cabeçalho "Hoje" significa data
+  ${hojeISO}; um cabeçalho "Ontem" significa data ${ontemISO}. NUNCA use a data de hoje/ontem como
+  padrão para um cabeçalho que mostra uma data explícita (tipo "13 JUL") — nesse caso use a data escrita.
 - Ignore saldo, cabeçalhos, totais e linhas que não sejam lançamentos individuais.
-${CAMPOS_EXTRAS}
+${CAMPOS_EXTRAS}${naturezaHint}
 - Se não conseguir ler algum campo com confiança, ainda assim inclua a linha com sua melhor
   estimativa — a pessoa vai revisar tudo antes de confirmar.
 - Se a imagem não for um extrato bancário, devolva {"lancamentos":[]}.`;
@@ -116,16 +134,16 @@ export default {
       return json({ error: "Corpo da requisição inválido (esperado JSON)" }, 400);
     }
 
-    const { image, mediaType, text, hoje, contas, clientes } = body || {};
+    const { image, mediaType, text, hoje, banco, contas, clientes } = body || {};
+    const hojeISO = typeof hoje === "string" && hoje ? hoje : new Date().toISOString().slice(0, 10);
 
     let messageContent;
     if (image && typeof image === "string") {
       messageContent = [
         { type: "image", source: { type: "base64", media_type: mediaType || "image/png", data: image } },
-        { type: "text", text: imagePrompt() },
+        { type: "text", text: imagePrompt(hojeISO, banco) },
       ];
     } else if (text && typeof text === "string" && text.trim()) {
-      const hojeISO = typeof hoje === "string" && hoje ? hoje : new Date().toISOString().slice(0, 10);
       messageContent = [{ type: "text", text: textPrompt(text.trim(), hojeISO, contas, clientes) }];
     } else {
       return json({ error: "Envie 'image' (base64) ou 'text' (transcrição)" }, 400);
