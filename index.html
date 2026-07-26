@@ -281,7 +281,6 @@ button{font-family:inherit}
     <button data-v="cli"><span class="ic">👥</span><span class="lbl">Clientes</span></button>
     <button data-v="arq"><span class="ic">📦</span><span class="lbl">Arquivadas</span></button>
     <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
-    <button data-v="anam"><span class="ic">🧬</span><span class="lbl">Anamneses</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -358,9 +357,6 @@ button{font-family:inherit}
     </section>
     <section class="view" id="arq">
       <div class="panel"><h2>📦 Tarefas finalizadas <span class="tag" id="arqN">0</span></h2><div class="plist" id="arqList"></div></div>
-    </section>
-    <section class="view" id="anam">
-      <div class="panel"><h2>🧬 Anamneses recebidas <span class="tag" id="anamN">0</span></h2><div class="plist" id="anamList"></div></div>
     </section>
   </div>
 </div>
@@ -1055,50 +1051,16 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais'],arq:['Arquivadas','Tarefas finalizadas'],anam:['Anamneses','Respostas recebidas dos formulários de anamnese']};
-const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()'],arq:['＋ Nova tarefa','addVideo()'],anam:['🔄 Atualizar','carregarAnamneses()']};
+const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais'],arq:['Arquivadas','Tarefas finalizadas']};
+const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()'],arq:['＋ Nova tarefa','addVideo()']};
 function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
   const btn=$('#addBtn');btn.style.display='flex';btn.textContent=ADD_ACTIONS[v][0];btn.setAttribute('onclick',ADD_ACTIONS[v][1]);
   $('#finEyeBtnTop').style.display=v==='fin'?'':'none';
   if(v==='dash'||v==='fin')resizeCharts();
-  if(v==='anam')carregarAnamneses();
 }
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)});
-
-let anamneses=[];
-function labelize(k){return k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
-function anamRespostasHtml(respostas){
-  const rows=Object.entries(respostas||{}).filter(([k])=>k!=='fotos').map(([k,v])=>{
-    let val=Array.isArray(v)?v.join(', '):(v===''||v==null?'—':String(v));
-    return `<div class="hist-row"><span class="hist-d" style="min-width:220px">${esc(labelize(k))}</span><span class="hist-e">${esc(val)}</span></div>`;
-  }).join('');
-  const fotos=respostas&&respostas.fotos&&typeof respostas.fotos==='object'?Object.entries(respostas.fotos):[];
-  const fotosHtml=fotos.length?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">${fotos.map(([k,url])=>`<a href="${esc(url)}" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none"><img src="${esc(url)}" style="width:80px;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><span style="font-size:11px;color:var(--muted)">${esc(labelize(k))}</span></a>`).join('')}</div>`:'';
-  return `<div class="hist">${rows||'<div class="hist-empty">Sem respostas.</div>'}</div>${fotosHtml}`;
-}
-function toggleAnam(id){const el=document.getElementById('anamBody_'+id);if(el)el.style.display=el.style.display==='none'?'block':'none'}
-function renderAnamneses(){
-  $('#anamN').textContent=anamneses.length;
-  $('#anamList').innerHTML=anamneses.length?anamneses.map(a=>`
-    <div class="prow" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="toggleAnam('${a.id}')">
-      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
-        <div><b>${esc(a.projeto||'Sem nome')}</b><div style="font-size:11.5px;color:var(--muted)">${esc(a.segmento||'')} · ${fmtD((a.created_at||'').slice(0,10))}${a.created_at?' '+a.created_at.slice(11,16):''}</div></div>
-        <span class="tag">Ver respostas ▾</span>
-      </div>
-      <div id="anamBody_${a.id}" style="display:none;margin-top:12px" onclick="event.stopPropagation()">${anamRespostasHtml(a.respostas)}</div>
-    </div>
-  `).join(''):'<div class="empty">Nenhuma anamnese recebida ainda.</div>';
-}
-function carregarAnamneses(){
-  $('#anamList').innerHTML='<div class="empty">Carregando...</div>';
-  sb.from('anamneses').select('*').order('created_at',{ascending:false}).then(({data,error})=>{
-    if(error){$('#anamList').innerHTML='<div class="empty">Erro ao carregar: '+esc(error.message)+'</div>';return}
-    anamneses=data||[];
-    renderAnamneses();
-  });
-}
 
 function historyHtml(v){
   const h=(v.historico||[]).slice().reverse();
