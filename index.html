@@ -1076,7 +1076,7 @@ function anamRespostasHtml(respostas){
   }).join('');
   const fotos=respostas&&respostas.fotos&&typeof respostas.fotos==='object'?Object.entries(respostas.fotos):[];
   const fotosHtml=fotos.length?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">${fotos.map(([k,url])=>`<a href="${esc(url)}" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none"><img src="${esc(url)}" style="width:80px;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><span style="font-size:11px;color:var(--muted)">${esc(labelize(k))}</span></a>`).join('')}</div>`:'';
-  return `<div class="hist">${rows||'<div class="hist-empty">Sem respostas.</div>'}</div>${fotosHtml}`;
+  return `<div class="hist" style="max-height:none;overflow:visible">${rows||'<div class="hist-empty">Sem respostas.</div>'}</div>${fotosHtml}`;
 }
 function toggleAnam(id){const el=document.getElementById('anamBody_'+id);if(el)el.style.display=el.style.display==='none'?'block':'none'}
 function renderAnamneses(){
