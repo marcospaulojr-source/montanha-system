@@ -1560,7 +1560,7 @@ function renderClientesCRM(){
       </div>
     </div>`).join(''):'<div class="empty">Nenhum cliente cadastrado ainda.</div>';
 }
-function addProposta(){
+function nextPropostaNumero(){
   const maiorSeq=(store.propostas||[]).reduce((max,p)=>{
     const digits=String(p.numero||'').replace(/\D/g,'');
     if(digits.length<5)return max;
@@ -1571,12 +1571,26 @@ function addProposta(){
   const dd=String(hoje.getDate()).padStart(2,'0');
   const mm=String(hoje.getMonth()+1).padStart(2,'0');
   const yy=String(hoje.getFullYear()).slice(-2);
-  const numero=`Nº ${dd}${mm}${yy}${String(maiorSeq+1).padStart(5,'0')}`;
-  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero,status:'rascunho',escopo:[],equipe:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimentoManual:null,investimento:0,observacoes:''};
+  return `Nº ${dd}${mm}${yy}${String(maiorSeq+1).padStart(5,'0')}`;
+}
+function addProposta(){
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero:nextPropostaNumero(),status:'rascunho',escopo:[],equipe:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimentoManual:null,investimento:0,observacoes:''};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
   modalDraft={type:'proposta',id:p.id};
+}
+async function salvarPropComoNova(){
+  const tituloAtual=$('#p_titulo')?$('#p_titulo').value.trim():propDraft.titulo;
+  const novoTitulo=prompt('Nome/título da nova proposta (baseada neste modelo):',tituloAtual?tituloAtual+' (cópia)':'');
+  if(novoTitulo===null)return;
+  const base=JSON.parse(JSON.stringify(propDraft));
+  const p={...base,id:uid(),numero:nextPropostaNumero(),titulo:novoTitulo.trim()||'(sem título)',status:'rascunho'};
+  (store.propostas=store.propostas||[]).push(p);
+  sb.from('propostas').insert(propToDb(p)).then(sbErr);
+  modalDraft={type:'proposta',id:p.id};
+  openProp(p.id);
+  toast('Nova proposta criada a partir deste modelo ✓');
 }
 let propDraft=null;
 function moveArrItem(key,from,to){
@@ -1715,6 +1729,7 @@ function renderPropModal(){
       </div>
 
       <button class="msave" onclick="saveProp('${p.id}')">Salvar proposta</button>
+      <button class="msave" style="background:#7C3AED" onclick="salvarPropComoNova()">📑 Salvar como nova proposta (usar este modelo)</button>
       <div class="frow" style="margin-top:10px">
         <button class="msave" style="background:#0F766E" onclick="gerarPropostaPDF('${p.id}')">📄 Gerar PDF</button>
         <button class="msave" style="background:#2563EB" onclick="enviarPropostaEmail('${p.id}')">📧 Enviar por e-mail</button>
