@@ -96,6 +96,12 @@ button{font-family:inherit}
 .prow-top .info{flex:1;min-width:0}
 .findel{all:unset;cursor:pointer;font-size:14px;padding:6px;border-radius:8px;line-height:1;opacity:.55;flex-shrink:0}
 .findel:hover{opacity:1;background:#FEF2F2}
+.draghandle{all:unset;cursor:grab;font-size:15px;padding:6px 4px;line-height:1;opacity:.45;flex-shrink:0;color:var(--muted)}
+.draghandle:hover{opacity:.9}
+.prop-drag-row{transition:opacity .12s}
+.prop-drag-row.dragging{opacity:.35}
+.prop-drag-row.drag-over-top{box-shadow:inset 0 2px 0 var(--accent)}
+.prop-drag-row.drag-over-bottom{box-shadow:inset 0 -2px 0 var(--accent)}
 .finselect{flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
 .fin-bulkbar{display:flex;align-items:center;gap:10px;padding:10px 19px;background:#FFF7ED;border-bottom:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--text)}
 .fin-bulkbar button{all:unset;cursor:pointer;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;background:var(--card);border:1px solid var(--line);color:var(--text)}
@@ -1571,25 +1577,60 @@ function addProposta(){
   modalDraft={type:'proposta',id:p.id};
 }
 let propDraft=null;
-function moveArrItem(key,i,dir){
-  const arr=propDraft[key];const j=i+dir;
-  if(!arr||j<0||j>=arr.length)return;
-  [arr[i],arr[j]]=[arr[j],arr[i]];
+function moveArrItem(key,from,to){
+  const arr=propDraft[key];
+  if(!arr||to<0||to>=arr.length||from===to)return;
+  const [item]=arr.splice(from,1);
+  arr.splice(to,0,item);
   renderPropModal();
   if(key==='servicos'||key==='equipamentos')updPropTotalDraft();
 }
-function moveBtns(key,i,len){
-  return `<button class="findel" onclick="moveArrItem('${key}',${i},-1)" ${i===0?'disabled':''} title="Subir" style="${i===0?'opacity:.3':''}">▲</button><button class="findel" onclick="moveArrItem('${key}',${i},1)" ${i===len-1?'disabled':''} title="Descer" style="${i===len-1?'opacity:.3':''}">▼</button>`;
+function dragHandle(key,i){
+  return `<span class="draghandle" draggable="true" data-key="${key}" data-idx="${i}" title="Arrastar para reordenar">⠿</span>`;
 }
-function propItemRow(key,it,i,len){
-  return `<div class="frow" style="align-items:center;gap:6px">
+function propItemRow(key,it,i){
+  return `<div class="frow prop-drag-row" data-key="${key}" data-idx="${i}" style="align-items:center;gap:6px">
+    ${dragHandle(key,i)}
     <input value="${esc(it.desc)}" placeholder="Descrição" onchange="propDraft.${key}[${i}].desc=this.value" style="flex:1">
     <input type="number" min="0" value="${it.qtd}" placeholder="Qtd" onchange="propDraft.${key}[${i}].qtd=parseFloat(this.value)||0;updPropTotalDraft()" style="width:64px">
     <input list="unidSug" value="${esc(it.unidade||'')}" placeholder="Unidade" onchange="propDraft.${key}[${i}].unidade=this.value" style="width:90px">
     <input type="number" min="0" step="0.01" value="${it.valor||''}" placeholder="Valor unit." onchange="propDraft.${key}[${i}].valor=parseFloat(this.value)||0;updPropTotalDraft()" style="width:100px">
-    ${moveBtns(key,i,len)}
     <button class="findel" onclick="rmPropItem('${key}',${i})" title="Remover">🗑️</button>
   </div>`;
+}
+function bindPropDrag(){
+  let srcKey=null,srcIdx=null;
+  $$('.prop-drag-row').forEach(row=>{
+    const handle=row.querySelector('.draghandle');
+    if(!handle)return;
+    handle.addEventListener('dragstart',e=>{
+      srcKey=row.dataset.key;srcIdx=parseInt(row.dataset.idx);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    handle.addEventListener('dragend',()=>{
+      row.classList.remove('dragging');
+      $$('.prop-drag-row').forEach(r=>r.classList.remove('drag-over-top','drag-over-bottom'));
+    });
+    row.addEventListener('dragover',e=>{
+      if(row.dataset.key!==srcKey)return;
+      e.preventDefault();
+      const before=(e.clientY-row.getBoundingClientRect().top)<row.offsetHeight/2;
+      row.classList.toggle('drag-over-top',before);
+      row.classList.toggle('drag-over-bottom',!before);
+    });
+    row.addEventListener('dragleave',()=>row.classList.remove('drag-over-top','drag-over-bottom'));
+    row.addEventListener('drop',e=>{
+      if(row.dataset.key!==srcKey)return;
+      e.preventDefault();
+      const targetIdx=parseInt(row.dataset.idx);
+      const before=row.classList.contains('drag-over-top');
+      row.classList.remove('drag-over-top','drag-over-bottom');
+      let to=before?targetIdx:targetIdx+1;
+      if(srcIdx<to)to--;
+      moveArrItem(srcKey,srcIdx,to);
+    });
+  });
 }
 function rmPropItem(key,i){propDraft[key].splice(i,1);renderPropModal();updPropTotalDraft()}
 function addPropItem(key){propDraft[key].push({desc:'',qtd:1,valor:0});renderPropModal()}
@@ -1628,23 +1669,23 @@ function renderPropModal(){
         <div class="fld"><label>Validade (dias)</label><input type="number" min="1" id="p_validade" value="${p.validadeDias||30}" onchange="propDraft.validadeDias=parseInt(this.value)||30"></div>
       </div>
 
-      <div class="fld"><label>O que está incluso (checklist)</label>
-        ${(p.escopo||[]).map((e,i,arr)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" onchange="propDraft.escopo[${i}]=this.value" style="flex:1">${moveBtns('escopo',i,arr.length)}<button class="findel" onclick="rmPropEscopo(${i})" title="Remover">🗑️</button></div>`).join('')}
+      <div class="fld"><label>O que está incluso (checklist) <span style="font-weight:400;opacity:.6">— arraste ⠿ pra reordenar</span></label>
+        ${(p.escopo||[]).map((e,i)=>`<div class="frow prop-drag-row" data-key="escopo" data-idx="${i}" style="align-items:center;gap:6px">${dragHandle('escopo',i)}<input value="${esc(e)}" onchange="propDraft.escopo[${i}]=this.value" style="flex:1"><button class="findel" onclick="rmPropEscopo(${i})" title="Remover">🗑️</button></div>`).join('')}
         <button class="eyebtn" onclick="addPropEscopo()">+ Adicionar item</button>
       </div>
 
-      <div class="fld"><label>Serviços (descrição · qtd · unidade · valor unitário)</label>
-        ${(p.servicos||[]).map((it,i,arr)=>propItemRow('servicos',it,i,arr.length)).join('')}
+      <div class="fld"><label>Serviços (descrição · qtd · unidade · valor unitário) <span style="font-weight:400;opacity:.6">— arraste ⠿ pra reordenar</span></label>
+        ${(p.servicos||[]).map((it,i)=>propItemRow('servicos',it,i)).join('')}
         <button class="eyebtn" onclick="addPropItem('servicos')">+ Adicionar serviço</button>
       </div>
 
-      <div class="fld"><label>Equipamentos (descrição · qtd · unidade · valor unitário)</label>
-        ${(p.equipamentos||[]).map((it,i,arr)=>propItemRow('equipamentos',it,i,arr.length)).join('')}
+      <div class="fld"><label>Equipamentos (descrição · qtd · unidade · valor unitário) <span style="font-weight:400;opacity:.6">— arraste ⠿ pra reordenar</span></label>
+        ${(p.equipamentos||[]).map((it,i)=>propItemRow('equipamentos',it,i)).join('')}
         <button class="eyebtn" onclick="addPropItem('equipamentos')">+ Adicionar equipamento</button>
       </div>
 
-      <div class="fld"><label>Equipe (opcional — ex: Diretor de imagens, Cinegrafista, Ajudante)</label>
-        ${(p.equipe||[]).map((e,i,arr)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" placeholder="Ex: Diretor de imagens" onchange="propDraft.equipe[${i}]=this.value" style="flex:1">${moveBtns('equipe',i,arr.length)}<button class="findel" onclick="rmPropEquipe(${i})" title="Remover">🗑️</button></div>`).join('')}
+      <div class="fld"><label>Equipe (opcional — ex: Diretor de imagens, Cinegrafista, Ajudante) <span style="font-weight:400;opacity:.6">— arraste ⠿ pra reordenar</span></label>
+        ${(p.equipe||[]).map((e,i)=>`<div class="frow prop-drag-row" data-key="equipe" data-idx="${i}" style="align-items:center;gap:6px">${dragHandle('equipe',i)}<input value="${esc(e)}" placeholder="Ex: Diretor de imagens" onchange="propDraft.equipe[${i}]=this.value" style="flex:1"><button class="findel" onclick="rmPropEquipe(${i})" title="Remover">🗑️</button></div>`).join('')}
         <button class="eyebtn" onclick="addPropEquipe()">+ Adicionar integrante</button>
       </div>
 
@@ -1678,6 +1719,7 @@ function renderPropModal(){
       </div>
       <button class="mdel" onclick="delProp('${p.id}')">Excluir</button>
     </div>`);
+  bindPropDrag();
 }
 function openProp(id){
   const orig=store.propostas.find(x=>x.id===id);
