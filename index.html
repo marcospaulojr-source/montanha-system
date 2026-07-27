@@ -1589,6 +1589,7 @@ async function salvarPropComoNova(){
   (store.propostas=store.propostas||[]).push(p);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
   modalDraft={type:'proposta',id:p.id};
+  renderPropostas();
   openProp(p.id);
   toast('Nova proposta criada a partir deste modelo ✓');
 }
