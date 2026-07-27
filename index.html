@@ -1571,12 +1571,23 @@ function addProposta(){
   modalDraft={type:'proposta',id:p.id};
 }
 let propDraft=null;
-function propItemRow(key,it,i){
+function moveArrItem(key,i,dir){
+  const arr=propDraft[key];const j=i+dir;
+  if(!arr||j<0||j>=arr.length)return;
+  [arr[i],arr[j]]=[arr[j],arr[i]];
+  renderPropModal();
+  if(key==='servicos'||key==='equipamentos')updPropTotalDraft();
+}
+function moveBtns(key,i,len){
+  return `<button class="findel" onclick="moveArrItem('${key}',${i},-1)" ${i===0?'disabled':''} title="Subir" style="${i===0?'opacity:.3':''}">▲</button><button class="findel" onclick="moveArrItem('${key}',${i},1)" ${i===len-1?'disabled':''} title="Descer" style="${i===len-1?'opacity:.3':''}">▼</button>`;
+}
+function propItemRow(key,it,i,len){
   return `<div class="frow" style="align-items:center;gap:6px">
     <input value="${esc(it.desc)}" placeholder="Descrição" onchange="propDraft.${key}[${i}].desc=this.value" style="flex:1">
     <input type="number" min="0" value="${it.qtd}" placeholder="Qtd" onchange="propDraft.${key}[${i}].qtd=parseFloat(this.value)||0;updPropTotalDraft()" style="width:64px">
     <input list="unidSug" value="${esc(it.unidade||'')}" placeholder="Unidade" onchange="propDraft.${key}[${i}].unidade=this.value" style="width:90px">
     <input type="number" min="0" step="0.01" value="${it.valor||''}" placeholder="Valor unit." onchange="propDraft.${key}[${i}].valor=parseFloat(this.value)||0;updPropTotalDraft()" style="width:100px">
+    ${moveBtns(key,i,len)}
     <button class="findel" onclick="rmPropItem('${key}',${i})" title="Remover">🗑️</button>
   </div>`;
 }
@@ -1618,22 +1629,22 @@ function renderPropModal(){
       </div>
 
       <div class="fld"><label>O que está incluso (checklist)</label>
-        ${(p.escopo||[]).map((e,i)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" onchange="propDraft.escopo[${i}]=this.value" style="flex:1"><button class="findel" onclick="rmPropEscopo(${i})" title="Remover">🗑️</button></div>`).join('')}
+        ${(p.escopo||[]).map((e,i,arr)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" onchange="propDraft.escopo[${i}]=this.value" style="flex:1">${moveBtns('escopo',i,arr.length)}<button class="findel" onclick="rmPropEscopo(${i})" title="Remover">🗑️</button></div>`).join('')}
         <button class="eyebtn" onclick="addPropEscopo()">+ Adicionar item</button>
       </div>
 
       <div class="fld"><label>Serviços (descrição · qtd · unidade · valor unitário)</label>
-        ${(p.servicos||[]).map((it,i)=>propItemRow('servicos',it,i)).join('')}
+        ${(p.servicos||[]).map((it,i,arr)=>propItemRow('servicos',it,i,arr.length)).join('')}
         <button class="eyebtn" onclick="addPropItem('servicos')">+ Adicionar serviço</button>
       </div>
 
       <div class="fld"><label>Equipamentos (descrição · qtd · unidade · valor unitário)</label>
-        ${(p.equipamentos||[]).map((it,i)=>propItemRow('equipamentos',it,i)).join('')}
+        ${(p.equipamentos||[]).map((it,i,arr)=>propItemRow('equipamentos',it,i,arr.length)).join('')}
         <button class="eyebtn" onclick="addPropItem('equipamentos')">+ Adicionar equipamento</button>
       </div>
 
       <div class="fld"><label>Equipe (opcional — ex: Diretor de imagens, Cinegrafista, Ajudante)</label>
-        ${(p.equipe||[]).map((e,i)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" placeholder="Ex: Diretor de imagens" onchange="propDraft.equipe[${i}]=this.value" style="flex:1"><button class="findel" onclick="rmPropEquipe(${i})" title="Remover">🗑️</button></div>`).join('')}
+        ${(p.equipe||[]).map((e,i,arr)=>`<div class="frow" style="align-items:center;gap:6px"><input value="${esc(e)}" placeholder="Ex: Diretor de imagens" onchange="propDraft.equipe[${i}]=this.value" style="flex:1">${moveBtns('equipe',i,arr.length)}<button class="findel" onclick="rmPropEquipe(${i})" title="Remover">🗑️</button></div>`).join('')}
         <button class="eyebtn" onclick="addPropEquipe()">+ Adicionar integrante</button>
       </div>
 
