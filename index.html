@@ -1687,7 +1687,9 @@ function updPropTotalDraft(){
     dAg.style.display=ativo?'block':'none';
     if(ativo){
       set('#p_comissao_display','+'+fmtBRL(c.comissaoVal));
+      set('#p_nf_display','+'+fmtBRL(c.nfVal));
       const cRow=$('#p_comissao_row');if(cRow)cRow.style.display=(propDraft.agenciaComissaoPerc||0)>0?'flex':'none';
+      const nRow=$('#p_nf_row');if(nRow)nRow.style.display=(propDraft.agenciaNfPerc||0)>0?'flex':'none';
     }
   }
   const warn=$('#p_agencia_warn');if(warn)warn.style.display=c.agenciaInvalida?'block':'none';
@@ -1768,6 +1770,7 @@ function renderPropModal(){
         </div>
         <div id="p_agencia_rows" style="display:${p.agenciaAtiva&&((p.agenciaComissaoPerc||0)>0||(p.agenciaNfPerc||0)>0)?'block':'none'}">
           <div id="p_comissao_row" style="display:${(p.agenciaComissaoPerc||0)>0?'flex':'none'};justify-content:space-between;color:#b8b1a6"><span>Comissão agência (${p.agenciaComissaoPerc||0}%)</span><span id="p_comissao_display">+${fmtBRL(calcProp(p).comissaoVal)}</span></div>
+          <div id="p_nf_row" style="display:${(p.agenciaNfPerc||0)>0?'flex':'none'};justify-content:space-between;color:#b8b1a6"><span>Nota fiscal (${p.agenciaNfPerc||0}%)</span><span id="p_nf_display">+${fmtBRL(calcProp(p).nfVal)}</span></div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(251,250,247,.18);font-weight:800;font-size:18px;color:#F58D33"><span>Total</span><span id="p_total_display">${fmtBRL(calcProp(p).total)}</span></div>
       </div>
