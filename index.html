@@ -456,23 +456,41 @@ function normProdItens(arr){
   return (arr||[]).map(it=>typeof it==='string'?{desc:it,qtd:1,unidade:'',valor:0}:{desc:it.desc||'',qtd:Number(it.qtd)||0,unidade:it.unidade||'',valor:Number(it.valor)||0});
 }
 function dbToProp(row){
-  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',status:row.status||'rascunho',escopo:row.escopo||[],equipe:row.equipe||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimentoManual:row.investimento_manual==null?null:Number(row.investimento_manual),investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',createdAt:row.created_at||''};
+  return {id:row.id,cliente:row.cliente||'',clienteEmail:row.cliente_email||'',titulo:row.titulo||'',data:row.data||todayISO(),validadeDias:row.validade_dias||30,numero:row.numero||'',status:row.status||'rascunho',escopo:row.escopo||[],equipe:row.equipe||[],servicos:normProdItens(row.servicos),equipamentos:normProdItens(row.equipamentos),desconto:Number(row.desconto)||0,imposto:Number(row.imposto)||0,prazo:row.prazo||'',pagamento:row.pagamento||'',investimentoManual:row.investimento_manual==null?null:Number(row.investimento_manual),investimento:Number(row.investimento)||0,observacoes:row.observacoes||'',agenciaAtiva:!!row.agencia_ativa,agenciaComissaoPerc:row.agencia_comissao_perc==null?15:Number(row.agencia_comissao_perc),agenciaNfPerc:row.agencia_nf_perc==null?6:Number(row.agencia_nf_perc),createdAt:row.created_at||''};
 }
 function propToDb(p){
-  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',status:p.status||'rascunho',escopo:p.escopo||[],equipe:p.equipe||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento_manual:(p.investimentoManual==null||p.investimentoManual==='')?null:Number(p.investimentoManual),investimento:p.investimento||0,observacoes:p.observacoes||''};
+  return {id:p.id,cliente:p.cliente||'',cliente_email:p.clienteEmail||'',titulo:p.titulo||'',data:p.data||null,validade_dias:p.validadeDias||30,numero:p.numero||'',status:p.status||'rascunho',escopo:p.escopo||[],equipe:p.equipe||[],servicos:p.servicos||[],equipamentos:p.equipamentos||[],desconto:p.desconto||0,imposto:p.imposto||0,prazo:p.prazo||'',pagamento:p.pagamento||'',investimento_manual:(p.investimentoManual==null||p.investimentoManual==='')?null:Number(p.investimentoManual),investimento:p.investimento||0,observacoes:p.observacoes||'',agencia_ativa:!!p.agenciaAtiva,agencia_comissao_perc:p.agenciaComissaoPerc==null?15:Number(p.agenciaComissaoPerc),agencia_nf_perc:p.agenciaNfPerc==null?6:Number(p.agenciaNfPerc)};
+}
+function calcAgenciaGrossUp(liquido,comissaoPerc,notaPerc){
+  const comissaoPct=(comissaoPerc||0)/100;
+  const notaPct=(notaPerc||0)/100;
+  const denom=1-comissaoPct-notaPct;
+  if(denom<=0)return{valorFinal:liquido,comissaoVal:0,notaVal:0,invalido:true};
+  const valorFinal=liquido/denom;
+  return{valorFinal,comissaoVal:valorFinal*comissaoPct,notaVal:valorFinal*notaPct,invalido:false};
 }
 function calcProp(p){
   if(p.investimentoManual!=null&&p.investimentoManual!==''){
     const v=Number(p.investimentoManual)||0;
-    return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,total:v};
+    if(p.agenciaAtiva){
+      const a=calcAgenciaGrossUp(v,p.agenciaComissaoPerc,p.agenciaNfPerc);
+      return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,comissaoVal:a.comissaoVal,nfVal:a.notaVal,agenciaInvalida:a.invalido,total:a.invalido?v:a.valorFinal};
+    }
+    return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,comissaoVal:0,nfVal:0,agenciaInvalida:false,total:v};
   }
   const subServ=(p.servicos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
   const subEquip=(p.equipamentos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
   const subtotal=subServ+subEquip;
   const descontoVal=subtotal*(p.desconto||0)/100;
   const impostoVal=(subtotal-descontoVal)*(p.imposto||0)/100;
-  const total=subtotal-descontoVal+impostoVal;
-  return{subServ,subEquip,subtotal,descontoVal,impostoVal,total};
+  const liquido=subtotal-descontoVal+impostoVal;
+  let comissaoVal=0,nfVal=0,total=liquido,agenciaInvalida=false;
+  if(p.agenciaAtiva){
+    const a=calcAgenciaGrossUp(liquido,p.agenciaComissaoPerc,p.agenciaNfPerc);
+    comissaoVal=a.comissaoVal;nfVal=a.notaVal;agenciaInvalida=a.invalido;
+    total=a.invalido?liquido:a.valorFinal;
+  }
+  return{subServ,subEquip,subtotal,descontoVal,impostoVal,comissaoVal,nfVal,agenciaInvalida,total};
 }
 async function fetchAll(){
   const [{data:clientsRows},{data:videoRows},{data:finRows},{data:siRows},{data:cfgRows},{data:propRows}]=await Promise.all([
@@ -1574,7 +1592,7 @@ function nextPropostaNumero(){
   return `Nº ${dd}${mm}${yy}${String(maiorSeq+1).padStart(5,'0')}`;
 }
 function addProposta(){
-  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero:nextPropostaNumero(),status:'rascunho',escopo:[],equipe:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimentoManual:null,investimento:0,observacoes:''};
+  const p={id:uid(),cliente:'',clienteEmail:'',titulo:'Produção de vídeos',data:todayISO(),validadeDias:30,numero:nextPropostaNumero(),status:'rascunho',escopo:[],equipe:[],servicos:DEFAULT_SERVICOS.map(s=>({desc:s,qtd:1,unidade:'',valor:0})),equipamentos:DEFAULT_EQUIPAMENTOS.map(s=>({desc:s,qtd:1,unidade:'incluso',valor:0})),desconto:0,imposto:0,prazo:'',pagamento:'',investimentoManual:null,investimento:0,observacoes:'',agenciaAtiva:false,agenciaComissaoPerc:15,agenciaNfPerc:6};
   (store.propostas=store.propostas||[]).push(p);
   openProp(p.id);
   sb.from('propostas').insert(propToDb(p)).then(sbErr);
@@ -1661,6 +1679,20 @@ function updPropTotalDraft(){
   set('#p_subtotal_display',fmtBRL(c.subtotal));
   set('#p_desconto_display','−'+fmtBRL(c.descontoVal));
   set('#p_imposto_display','+'+fmtBRL(c.impostoVal));
+  const dDesc=$('#p_desconto_row');if(dDesc)dDesc.style.display=(propDraft.desconto||0)>0?'flex':'none';
+  const dImp=$('#p_imposto_row');if(dImp)dImp.style.display=(propDraft.imposto||0)>0?'flex':'none';
+  const dAg=$('#p_agencia_rows');
+  if(dAg){
+    const ativo=!!propDraft.agenciaAtiva&&((propDraft.agenciaComissaoPerc||0)>0||(propDraft.agenciaNfPerc||0)>0);
+    dAg.style.display=ativo?'block':'none';
+    if(ativo){
+      set('#p_comissao_display','+'+fmtBRL(c.comissaoVal));
+      set('#p_nf_display','+'+fmtBRL(c.nfVal));
+      const cRow=$('#p_comissao_row');if(cRow)cRow.style.display=(propDraft.agenciaComissaoPerc||0)>0?'flex':'none';
+      const nRow=$('#p_nf_row');if(nRow)nRow.style.display=(propDraft.agenciaNfPerc||0)>0?'flex':'none';
+    }
+  }
+  const warn=$('#p_agencia_warn');if(warn)warn.style.display=c.agenciaInvalida?'block':'none';
   set('#p_total_display',fmtBRL(c.total));
   const rows=$('#p_calc_rows_display');if(rows)rows.style.display=propDraft.investimentoManual!=null?'none':'block';
 }
@@ -1710,6 +1742,16 @@ function renderPropModal(){
         <div class="fld"><label>Desconto (%)</label><input type="number" min="0" max="100" id="p_desconto" value="${p.desconto||''}" onchange="propDraft.desconto=parseFloat(this.value)||0;updPropTotalDraft()"></div>
         <div class="fld"><label>Impostos (%)</label><input type="number" min="0" max="100" id="p_imposto" value="${p.imposto||''}" onchange="propDraft.imposto=parseFloat(this.value)||0;updPropTotalDraft()"></div>
       </div>
+
+      <div class="fld">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="p_agencia_ativa" ${p.agenciaAtiva?'checked':''} onchange="propDraft.agenciaAtiva=this.checked;updPropTotalDraft()"> Comissão de agência (ex: Fábrica de Ideias)</label>
+      </div>
+      <div class="frow">
+        <div class="fld"><label>Comissão da agência (%)</label><input type="number" min="0" max="99" step="0.01" id="p_agencia_comissao" value="${p.agenciaComissaoPerc!=null?p.agenciaComissaoPerc:''}" placeholder="Ex: 15" onchange="propDraft.agenciaComissaoPerc=this.value===''?0:parseFloat(this.value)||0;updPropTotalDraft()"></div>
+        <div class="fld"><label>Nota fiscal (%)</label><input type="number" min="0" max="99" step="0.01" id="p_agencia_nf" value="${p.agenciaNfPerc!=null?p.agenciaNfPerc:''}" placeholder="Ex: 6" onchange="propDraft.agenciaNfPerc=this.value===''?0:parseFloat(this.value)||0;updPropTotalDraft()"></div>
+      </div>
+      <div id="p_agencia_warn" style="display:none;color:#DC2626;font-size:13px;margin:-6px 0 10px">A soma da comissão + nota fiscal não pode chegar a 100%. Ajuste os percentuais.</div>
+
       <div class="frow">
         <div class="fld"><label>Prazo de entrega</label><input id="p_prazo" value="${esc(p.prazo||'')}" placeholder="Ex: Entrega digital em até 24h" onchange="propDraft.prazo=this.value"></div>
         <div class="fld"><label>Forma de pagamento</label><input id="p_pagamento" value="${esc(p.pagamento||'')}" placeholder="Ex: 50% na confirmação · 50% na entrega" onchange="propDraft.pagamento=this.value"></div>
@@ -1723,8 +1765,12 @@ function renderPropModal(){
       <div style="background:#171310;color:#FBFAF7;border-radius:12px;padding:14px 18px;margin:6px 0;font-size:13px">
         <div id="p_calc_rows_display" style="display:${p.investimentoManual!=null?'none':'block'}">
           <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Subtotal</span><span id="p_subtotal_display">${fmtBRL(calcProp(p).subtotal)}</span></div>
-          <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Desconto</span><span id="p_desconto_display">−${fmtBRL(calcProp(p).descontoVal)}</span></div>
-          <div style="display:flex;justify-content:space-between;color:#b8b1a6"><span>Impostos</span><span id="p_imposto_display">+${fmtBRL(calcProp(p).impostoVal)}</span></div>
+          <div id="p_desconto_row" style="display:${(p.desconto||0)>0?'flex':'none'};justify-content:space-between;color:#b8b1a6"><span>Desconto</span><span id="p_desconto_display">−${fmtBRL(calcProp(p).descontoVal)}</span></div>
+          <div id="p_imposto_row" style="display:${(p.imposto||0)>0?'flex':'none'};justify-content:space-between;color:#b8b1a6"><span>Impostos</span><span id="p_imposto_display">+${fmtBRL(calcProp(p).impostoVal)}</span></div>
+        </div>
+        <div id="p_agencia_rows" style="display:${p.agenciaAtiva&&((p.agenciaComissaoPerc||0)>0||(p.agenciaNfPerc||0)>0)?'block':'none'}">
+          <div id="p_comissao_row" style="display:${(p.agenciaComissaoPerc||0)>0?'flex':'none'};justify-content:space-between;color:#b8b1a6"><span>Comissão agência (${p.agenciaComissaoPerc||0}%)</span><span id="p_comissao_display">+${fmtBRL(calcProp(p).comissaoVal)}</span></div>
+          <div id="p_nf_row" style="display:${(p.agenciaNfPerc||0)>0?'flex':'none'};justify-content:space-between;color:#b8b1a6"><span>Nota fiscal (${p.agenciaNfPerc||0}%)</span><span id="p_nf_display">+${fmtBRL(calcProp(p).nfVal)}</span></div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(251,250,247,.18);font-weight:800;font-size:18px;color:#F58D33"><span>Total</span><span id="p_total_display">${fmtBRL(calcProp(p).total)}</span></div>
       </div>
@@ -1926,6 +1972,8 @@ function gerarPropostaPDF(id){
         <div class="inv-tag mono">INVESTIMENTO</div>
         ${p.investimentoManual==null&&p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
         ${p.investimentoManual==null&&p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
+        ${p.agenciaAtiva&&p.agenciaComissaoPerc?`<div class="inv-row"><span>Comissão agência (${p.agenciaComissaoPerc}%)</span><span class="mono">+${mask2(c.comissaoVal)}</span></div>`:''}
+        ${p.agenciaAtiva&&p.agenciaNfPerc?`<div class="inv-row"><span>Nota fiscal (${p.agenciaNfPerc}%)</span><span class="mono">+${mask2(c.nfVal)}</span></div>`:''}
         <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
       </div>
     </div>
