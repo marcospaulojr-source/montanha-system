@@ -474,9 +474,9 @@ function calcProp(p){
     const v=Number(p.investimentoManual)||0;
     if(p.agenciaAtiva){
       const a=calcAgenciaGrossUp(v,p.agenciaComissaoPerc,p.agenciaNfPerc);
-      return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,comissaoVal:a.comissaoVal,nfVal:a.notaVal,agenciaInvalida:a.invalido,total:a.invalido?v:a.valorFinal};
+      return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,liquido:v,comissaoVal:a.comissaoVal,nfVal:a.notaVal,agenciaInvalida:a.invalido,total:a.invalido?v:a.valorFinal};
     }
-    return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,comissaoVal:0,nfVal:0,agenciaInvalida:false,total:v};
+    return{subServ:0,subEquip:0,subtotal:v,descontoVal:0,impostoVal:0,liquido:v,comissaoVal:0,nfVal:0,agenciaInvalida:false,total:v};
   }
   const subServ=(p.servicos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
   const subEquip=(p.equipamentos||[]).reduce((s,it)=>s+(it.qtd||0)*(it.valor||0),0);
@@ -490,7 +490,7 @@ function calcProp(p){
     comissaoVal=a.comissaoVal;nfVal=a.notaVal;agenciaInvalida=a.invalido;
     total=a.invalido?liquido:a.valorFinal;
   }
-  return{subServ,subEquip,subtotal,descontoVal,impostoVal,comissaoVal,nfVal,agenciaInvalida,total};
+  return{subServ,subEquip,subtotal,descontoVal,impostoVal,liquido,comissaoVal,nfVal,agenciaInvalida,total};
 }
 async function fetchAll(){
   const [{data:clientsRows},{data:videoRows},{data:finRows},{data:siRows},{data:cfgRows},{data:propRows}]=await Promise.all([
@@ -1918,6 +1918,9 @@ function gerarPropostaPDF(id){
     .inv-total{border-top:1px solid rgba(251,250,247,.18);padding-top:14px;display:flex;flex-direction:column;gap:2px}
     .inv-total .lab{font-size:12px;color:#b8b1a6}
     .inv-total .val{font-size:30px;font-weight:700;letter-spacing:-0.02em;color:#F58D33}
+    .inv-stack{display:flex;flex-direction:column;gap:2px}
+    .inv-stack .lab{font-size:12px;color:#b8b1a6}
+    .inv-stack .val{font-size:18px;font-weight:700;color:#FBFAF7}
     .foot{display:flex;justify-content:space-between;gap:16px;padding:12px 44px;border-top:1px solid #E0DACF;font-size:10.5px;color:#9a9285}
     @media print{
       @page{size:A4;margin:0}
@@ -1972,9 +1975,9 @@ function gerarPropostaPDF(id){
         <div class="inv-tag mono">INVESTIMENTO</div>
         ${p.investimentoManual==null&&p.desconto?`<div class="inv-row"><span>Desconto (${p.desconto}%)</span><span class="mono">−${mask2(c.descontoVal)}</span></div>`:''}
         ${p.investimentoManual==null&&p.imposto?`<div class="inv-row"><span>Impostos (${p.imposto}%)</span><span class="mono">+${mask2(c.impostoVal)}</span></div>`:''}
-        ${p.agenciaAtiva&&p.agenciaComissaoPerc?`<div class="inv-row"><span>Comissão agência (${p.agenciaComissaoPerc}%)</span><span class="mono">+${mask2(c.comissaoVal)}</span></div>`:''}
-        ${p.agenciaAtiva&&p.agenciaNfPerc?`<div class="inv-row"><span>Nota fiscal (${p.agenciaNfPerc}%)</span><span class="mono">+${mask2(c.nfVal)}</span></div>`:''}
-        <div class="inv-total"><div class="lab">Total</div><div class="val">${mask2(c.total)}</div></div>
+        ${p.agenciaAtiva&&!c.agenciaInvalida&&(p.agenciaComissaoPerc||p.agenciaNfPerc)?`<div class="inv-stack"><div class="lab">Produtora</div><div class="val mono">${mask2(c.liquido)}</div></div>`:''}
+        ${p.agenciaAtiva&&p.agenciaComissaoPerc?`<div class="inv-stack"><div class="lab">Agência</div><div class="val mono">${mask2(c.comissaoVal)}</div></div>`:''}
+        <div class="inv-total"><div class="lab">Valor total</div><div class="val">${mask2(c.total)}</div></div>
       </div>
     </div>
     <div class="foot"><span>Montanha Filmes · (22) 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
