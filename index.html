@@ -504,7 +504,7 @@ async function fetchAll(){
   const clients=(clientsRows||[]).map(c=>({id:c.id,brand:{name:c.name,sub:c.sub,accent:c.accent,logo:c.logo,logoImg:c.logo_img||''},videos:[],responsavel:c.responsavel||'',telefone:c.telefone||'',email:c.email||'',instagram:c.instagram||'',razaoSocial:c.razao_social||'',cnpj:c.cnpj||'',endereco:c.endereco||'',valorMensal:Number(c.valor_mensal)||0,diaVencimento:c.dia_vencimento||null,dataInicioContrato:c.data_inicio_contrato||'',status:c.status||'ativo',observacoes:c.observacoes||''}));
   (videoRows||[]).forEach(row=>{const c=clients.find(x=>x.id===row.client_id);if(c)c.videos.push(dbToVideo(row))});
   const lastId=lsGet('lastClientId');
-  const current=(clients.find(c=>c.id===lastId)||clients[0]||{}).id||null;
+  const current=lastId===ALL_ID?ALL_ID:(clients.find(c=>c.id===lastId)||clients[0]||{}).id||null;
   const cfg=cfgRows&&cfgRows[0];
   if(cfg&&Array.isArray(cfg.bancos)&&cfg.bancos.length){BANCOS.length=0;BANCOS.push(...cfg.bancos)}
   if(cfg&&Array.isArray(cfg.reserve_bancos)&&cfg.reserve_bancos.length){RESERVE_BANCOS.length=0;RESERVE_BANCOS.push(...cfg.reserve_bancos)}
@@ -536,7 +536,14 @@ function logStage(v,estagio){
   const last=v.historico[v.historico.length-1];
   if(!last||last.estagio!==estagio)v.historico.push({estagio,data:todayISO(),hora:nowHora()});
 }
-function cur(){return store.clients.find(c=>c.id===store.current)||store.clients[0]}
+const ALL_ID='__todos__';
+function cur(){
+  if(store.current===ALL_ID){
+    return {id:ALL_ID,brand:{name:'Todos os clientes',sub:'Visão geral de todos os projetos em andamento',accent:'#171310',logo:'⚡',logoImg:''},videos:store.clients.flatMap(c=>c.videos||[])};
+  }
+  return store.clients.find(c=>c.id===store.current)||store.clients[0];
+}
+function ownerOf(videoId){return store.clients.find(c=>(c.videos||[]).some(v=>v.id===videoId))}
 function sbErr(r){if(r&&r.error){console.error('Erro Supabase:',r.error);toast('⚠️ Erro ao salvar: '+r.error.message)}}
 
 let calDate=new Date();
@@ -558,7 +565,7 @@ function uploadBrandLogo(e){
   e.target.value='';
 }
 function renderClientSelect(){
-  const opts=store.clients.slice().sort((a,b)=>a.brand.name.localeCompare(b.brand.name,'pt-BR')).map(c=>`<option value="${c.id}" ${c.id===store.current?'selected':''}>${esc(c.brand.name)}</option>`).join('');
+  const opts=`<option value="${ALL_ID}" ${store.current===ALL_ID?'selected':''}>🗂️ Todos</option>`+store.clients.slice().sort((a,b)=>a.brand.name.localeCompare(b.brand.name,'pt-BR')).map(c=>`<option value="${c.id}" ${c.id===store.current?'selected':''}>${esc(c.brand.name)}</option>`).join('');
   $('#cliSelect').innerHTML=opts;
   const m=$('#cliSelectMobile');if(m)m.innerHTML=opts;
 }
@@ -1178,6 +1185,7 @@ function openV(id){
     </div>`);
 }
 function addVideo(){
+  if(store.current===ALL_ID){toast('⚠️ Selecione um cliente específico pra criar uma nova tarefa');return}
   const v={id:uid(),cliente:cur().brand.name||'',titulo:'',objetivo:'redes_sociais',estagio:'agendado',inicio:todayISO(),entrega:todayISO(),horaAgendado:'',roteiro:'',mods:'',enviado:false,dataEnvio:'',editor:'',descricaoServico:'',historico:[{estagio:'agendado',data:todayISO(),hora:nowHora()}]};
   cur().videos.push(v);openV(v.id);
   sb.from('videos').insert(videoToDb(v,cur().id)).then(sbErr);
@@ -1200,11 +1208,11 @@ function saveV(id){
   logStage(v,v.estagio);
   modalDraft=null;
   closeM();render();toast('Vídeo salvo ✓');
-  sb.from('videos').update(videoToDb(v,cur().id)).eq('id',id).then(sbErr);
+  sb.from('videos').update(videoToDb(v,(ownerOf(id)||cur()).id)).eq('id',id).then(sbErr);
 }
 async function delV(id){
   if(!(await confirmDialog('Excluir este vídeo?')))return;
-  const c=cur();const v=c.videos.find(x=>x.id===id);
+  const c=ownerOf(id)||cur();const v=c.videos.find(x=>x.id===id);
   const finish=()=>{c.videos=c.videos.filter(x=>x.id!==id);modalDraft=null;closeM();render();toast('Vídeo excluído');sb.from('videos').delete().eq('id',id).then(sbErr)};
   if(v)gcalDeleteEvent(v,finish);else finish();
 }
@@ -2179,6 +2187,7 @@ async function saveAjusteSaldo(){
 
 const SWATCHES=['#EF7B24','#2563EB','#16A34A','#7C3AED','#DC2626','#0891B2','#DB2777','#0B2545'];
 function openSettings(){
+  if(store.current===ALL_ID){toast('⚠️ Selecione um cliente específico pra editar marca & configurações');return}
   const b=cur().brand;
   openModal(`<div class="mtop"><h3>Marca & configurações</h3><span class="x" onclick="closeM()">✕</span></div><div class="mb">
     <div class="fld"><label>Nome do cliente</label><input id="b_name" value="${esc(b.name)}"></div>
