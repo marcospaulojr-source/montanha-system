@@ -1046,7 +1046,7 @@ function renderFin(){
   const ativo=grupos[finGroupFilter];
   const itensOrdenados=ordenarLista(ativo.itens);
   [...finSelecionados].forEach(id=>{if(!F.some(f=>f.id===id))finSelecionados.delete(id)});
-  const bulkBarHtml=finSelecionados.size?`<div class="fin-bulkbar"><span>${finSelecionados.size} selecionado(s)</span><button onclick="limparFinSelecionados()">Limpar seleção</button><button class="del" onclick="excluirFinSelecionados()">🗑️ Excluir selecionados</button></div>`:'';
+  const bulkBarHtml=finSelecionados.size?`<div class="fin-bulkbar"><span>${finSelecionados.size} selecionado(s)</span><button onclick="limparFinSelecionados()">Limpar seleção</button><button onclick="openEditarFinSelecionados()">✏️ Editar selecionados</button><button class="del" onclick="excluirFinSelecionados()">🗑️ Excluir selecionados</button></div>`:'';
   $('#finList').innerHTML=tabsHtml+groupTabsHtml+bulkBarHtml+(itensOrdenados.length?itensOrdenados.map(finRow).join(''):`<div class="empty">${ativo.vazio}</div>`);
 }
 let finFilter='all';
@@ -1067,6 +1067,36 @@ async function excluirFinSelecionados(){
   finSelecionados.clear();
   render();toast('Lançamentos excluídos ✓');
   sb.from('financeiro').delete().in('id',ids).then(sbErr);
+}
+function openEditarFinSelecionados(){
+  const n=finSelecionados.size;
+  if(!n)return;
+  openModal(`<div class="mtop"><h3>Editar ${n} lançamento(s) selecionado(s)</h3><span class="x" onclick="closeM()">✕</span></div>
+    <div class="mb">
+      <div class="hist-empty">Só os campos que você preencher abaixo serão alterados nos lançamentos selecionados. Deixe em "Não alterar" pra manter como está.</div>
+      <div class="fld"><label>Conta</label><select id="bulk_banco">${bancoOptions('').replace('Selecione...','Não alterar')}</select></div>
+      <div class="fld"><label>Natureza</label><select id="bulk_natureza">
+        <option value="">Não alterar</option>
+        <option value="empresa">🏢 Empresa</option>
+        <option value="pessoal">👤 Pessoal</option>
+      </select></div>
+      <button class="msave" onclick="aplicarEdicaoFinSelecionados()">Aplicar</button>
+    </div>`);
+}
+function aplicarEdicaoFinSelecionados(){
+  const ids=[...finSelecionados];
+  if(!ids.length)return;
+  const banco=$('#bulk_banco').value;
+  const natureza=$('#bulk_natureza').value;
+  if(!banco&&!natureza){toast('Escolha ao menos um campo pra alterar');return}
+  snapshotFinanceiro();
+  const patch={};
+  if(banco)patch.banco=banco;
+  if(natureza)patch.natureza=natureza;
+  store.financeiro.forEach(f=>{if(finSelecionados.has(f.id))Object.assign(f,patch)});
+  finSelecionados.clear();
+  closeM();render();toast(`${ids.length} lançamento(s) atualizado(s) ✓`);
+  sb.from('financeiro').update(patch).in('id',ids).then(sbErr);
 }
 let valoresVisiveis=false;
 function toggleValoresVisiveis(){valoresVisiveis=!valoresVisiveis;renderFin()}
@@ -1224,7 +1254,7 @@ function addFinanceiro(){
   const bancoPadrao=BANCOS.includes('Nubank PF')?'Nubank PF':(BANCOS[0]||'');
   const tipoPadrao=finGroupFilter==='entrada'||finGroupFilter==='areceber'?'entrada':'saida';
   const statusPadrao=finGroupFilter==='apagar'||finGroupFilter==='areceber'?'pendente':'pago';
-  const f={id:uid(),tipo:tipoPadrao,descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:statusPadrao,dataPagamento:statusPadrao==='pago'?todayISO():'',hora:nowHora(),categoria:'',natureza:'empresa'};
+  const f={id:uid(),tipo:tipoPadrao,descricao:'',cliente:'',valor:0,desconto:0,formaPagamento:'pix',banco:bancoPadrao,vencimento:todayISO(),status:statusPadrao,dataPagamento:statusPadrao==='pago'?todayISO():'',hora:nowHora(),categoria:'',natureza:'pessoal'};
   (store.financeiro=store.financeiro||[]).push(f);
   openFin(f.id,true);
   sb.from('financeiro').insert(finToDb(f)).then(sbErr);
@@ -1252,7 +1282,7 @@ function openFin(id,isNew){
       </div>
       <div class="fld"><label>Status</label><select id="f_status"><option id="f_status_pendente" value="pendente" ${f.status==='pendente'?'selected':''}>Pendente (${f.tipo==='saida'?'a pagar':'a receber'})</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago</option></select></div>
       <div class="fld"><label>Categoria (opcional)</label><select id="f_categoria"><option value="" ${!f.categoria?'selected':''}>Nenhuma</option><option value="imposto" ${f.categoria==='imposto'?'selected':''}>🧾 Imposto</option></select></div>
-      <div class="fld"><label>Natureza</label><select id="f_natureza"><option value="empresa" ${(f.natureza||'empresa')==='empresa'?'selected':''}>🏢 Empresa</option><option value="pessoal" ${f.natureza==='pessoal'?'selected':''}>👤 Pessoal</option></select></div>
+      <div class="fld"><label>Natureza</label><select id="f_natureza"><option value="empresa" ${f.natureza==='empresa'?'selected':''}>🏢 Empresa</option><option value="pessoal" ${(f.natureza||'pessoal')==='pessoal'?'selected':''}>👤 Pessoal</option></select></div>
       <button class="msave" onclick="saveFin('${id}',${isNew?'true':'false'})">Salvar lançamento</button>
       <button class="mdel" onclick="delFin('${id}')">Excluir</button>
     </div>`);
@@ -1279,7 +1309,7 @@ function saveFin(id,isNew){
   f.status=novoStatus;
   f.dataPagamento=f.status==='pago'?(f.vencimento||todayISO()):'';
   f.categoria=$('#f_categoria')?$('#f_categoria').value:'';
-  f.natureza=$('#f_natureza')?$('#f_natureza').value:'empresa';
+  f.natureza=$('#f_natureza')?$('#f_natureza').value:'pessoal';
   f.origemVoz=false;
   modalDraft=null;
   finGroupFilter=f.status!=='pago'?(f.tipo==='saida'?'apagar':'areceber'):(f.tipo==='saida'?'saida':'entrada');
@@ -1381,7 +1411,7 @@ function parseExtratoCSV(text){
     if(!dataISO||!valor)continue;
     const descricao=idxDesc>=0?cols[idxDesc]:'Lançamento importado';
     const tipo=isCartao?(valor>=0?'saida':'entrada'):(valor>=0?'entrada':'saida');
-    out.push({data:dataISO,descricao,valor:Math.abs(valor),tipo,banco:extratoBanco||'',formaPagamento:inferFormaPagamento(descricao),categoria:'',natureza:'empresa',cliente:'',status:'pago',desconto:0,hora:'',incluir:true});
+    out.push({data:dataISO,descricao,valor:Math.abs(valor),tipo,banco:extratoBanco||'',formaPagamento:inferFormaPagamento(descricao),categoria:'',natureza:'pessoal',cliente:'',status:'pago',desconto:0,hora:'',incluir:true});
   }
   return out;
 }
@@ -1395,7 +1425,7 @@ function parseExtratoOFX(text){
     const valor=parseValorNum(get('TRNAMT'));
     if(!dataISO||!valor)return;
     const descricao=get('MEMO')||get('NAME')||'Lançamento importado';
-    out.push({data:dataISO,descricao,valor:Math.abs(valor),tipo:valor>=0?'entrada':'saida',banco:extratoBanco||'',formaPagamento:inferFormaPagamento(descricao),categoria:'',natureza:'empresa',cliente:'',status:'pago',desconto:0,hora:'',incluir:true});
+    out.push({data:dataISO,descricao,valor:Math.abs(valor),tipo:valor>=0?'entrada':'saida',banco:extratoBanco||'',formaPagamento:inferFormaPagamento(descricao),categoria:'',natureza:'pessoal',cliente:'',status:'pago',desconto:0,hora:'',incluir:true});
   });
   return out;
 }
@@ -1436,7 +1466,7 @@ function fileToBase64(file){
 const EXTRATO_WORKER_URL='https://montanha-analisar-extrato.marcospaulojr.workers.dev';
 function normFormaPagamento(v){return Object.keys(PAY_METHODS).includes(v)&&v!=='cartao'?v:'outro'}
 function normCategoria(v){return v==='imposto'?'imposto':''}
-function normNatureza(v){return v==='pessoal'?'pessoal':'empresa'}
+function normNatureza(v){return v==='empresa'?'empresa':'pessoal'}
 function normStatus(v){return v==='pendente'?'pendente':'pago'}
 function normCliente(v){return(store.clients||[]).some(c=>c.brand.name===v)?v:''}
 async function processarExtratos(fileList){
@@ -1467,7 +1497,7 @@ function expandReservaPairs(lista){
     if(l.banco&&RESERVE_BANCOS.includes(l.banco)&&contaPadrao){
       const tipoPar=l.tipo==='saida'?'entrada':'saida';
       const descPar=l.tipo==='saida'?`Resgate da ${l.banco}`:`Depósito para ${l.banco}`;
-      expandido.push({data:l.data,descricao:descPar,valor:l.valor,tipo:tipoPar,banco:contaPadrao,formaPagamento:'transferencia',categoria:'',natureza:l.natureza||'empresa',cliente:'',status:'pago',desconto:0,hora:l.hora||'',incluir:true});
+      expandido.push({data:l.data,descricao:descPar,valor:l.valor,tipo:tipoPar,banco:contaPadrao,formaPagamento:'transferencia',categoria:'',natureza:l.natureza||'pessoal',cliente:'',status:'pago',desconto:0,hora:l.hora||'',incluir:true});
     }
   });
   return expandido;
@@ -1533,8 +1563,8 @@ function extratoRow(l,i){
       <option value="imposto" ${l.categoria==='imposto'?'selected':''}>🧾 Imposto</option>
     </select></label>
     <label>Natureza<select onchange="extratoLancamentos[${i}].natureza=this.value">
-      <option value="empresa" ${(l.natureza||'empresa')==='empresa'?'selected':''}>🏢 Empresa</option>
-      <option value="pessoal" ${l.natureza==='pessoal'?'selected':''}>👤 Pessoal</option>
+      <option value="empresa" ${l.natureza==='empresa'?'selected':''}>🏢 Empresa</option>
+      <option value="pessoal" ${(l.natureza||'pessoal')==='pessoal'?'selected':''}>👤 Pessoal</option>
     </select></label>
     <label>Desconto (R$)<input type="number" step="0.01" min="0" value="${l.desconto||''}" placeholder="0,00" onchange="extratoLancamentos[${i}].desconto=parseFloat(this.value)||0"></label>
     <label>Hora<input type="time" value="${esc(l.hora||'')}" onchange="extratoLancamentos[${i}].hora=this.value"></label>
