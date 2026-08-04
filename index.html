@@ -340,7 +340,7 @@ button{font-family:inherit}
       </div>
     </section>
     <section class="view" id="fin">
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><span id="finUndoBtn"></span><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📷 Importar extrato (IA)</button></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><span id="finUndoBtn"></span><button class="eyebtn" onclick="openLancarVoz()">🎤 Lançar por voz</button><button class="eyebtn" onclick="openImportExtrato()">📄 Importar extrato</button></div>
       <div class="stats" id="finStats"></div>
       <div class="panel" style="margin-bottom:20px"><h2>🏦 Saldo por banco/conta <span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="openGerenciarContas()">⚙️ Gerenciar contas</span><span class="tag" style="cursor:pointer;color:#7C3AED;font-weight:700" onclick="openReservaMov()">🔒 Movimentar reserva</span><span class="tag" style="cursor:pointer;color:#0369A1;font-weight:700" onclick="openAjustarSaldo()">✏️ Ajustar saldo de uma conta</span></h2><div id="finBancos" style="padding:6px 19px 14px"></div><div style="padding:0 19px 14px"><span class="tag" style="cursor:pointer;color:var(--muted);font-weight:600;font-size:11.5px" onclick="openSaldoInicial()">Ajuste avançado (todas as contas de uma vez)</span></div></div>
       <div class="panel" style="margin-bottom:20px"><h2>📊 Totais por período</h2><div id="finPeriodo" style="padding:6px 19px 14px"></div></div>
@@ -1308,14 +1308,117 @@ async function clearFinanceiro(){
 let extratoLancamentos=[];
 function openImportExtrato(){
   extratoLancamentos=[];extratoBanco='';extratoOrigemVoz=false;
-  openModalWide(`<div class="mtop"><h3>📷 Importar extrato (IA)</h3><span class="x" onclick="closeM()">✕</span></div>
+  openModalWide(`<div class="mtop"><h3>Importar extrato</h3><span class="x" onclick="closeM()">✕</span></div>
     <div class="mb">
-      <div class="hist-empty">Envie um ou vários prints/fotos do extrato bancário (ou cole com Ctrl+V). A IA vai identificar os lançamentos de todas as imagens — você confere, edita e escolhe o que importar antes de gravar.</div>
       <div class="fld"><label>De qual conta é esse extrato?</label><select id="extratoBancoSel" onchange="extratoBanco=this.value">${bancoOptions('')}</select></div>
+      <div class="hist-empty">📄 Arquivo OFX ou CSV exportado do banco — leitura exata, sem IA, o jeito mais confiável.</div>
+      <div class="fld"><input type="file" accept=".ofx,.qfx,.csv" id="extratoArquivoFile" onchange="processarExtratoArquivo(this.files)"></div>
+      <div class="hist-empty">📷 Ou envie um ou vários prints/fotos do extrato (ou cole com Ctrl+V). A IA identifica os lançamentos, mas pode errar números — confira tudo antes de importar.</div>
       <div class="fld"><input type="file" accept="image/*" multiple id="extratoFile" onchange="processarExtratos(this.files)"></div>
       <div id="extratoStatus"></div>
     </div>`);
   document.addEventListener('paste',extratoPasteHandler);
+}
+function brToISO(d){
+  if(!d)return'';
+  d=String(d).trim();
+  const br=d.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if(br)return`${br[3]}-${br[2]}-${br[1]}`;
+  const iso=d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(iso)return`${iso[1]}-${iso[2]}-${iso[3]}`;
+  const ofx=d.match(/^(\d{4})(\d{2})(\d{2})/);
+  if(ofx)return`${ofx[1]}-${ofx[2]}-${ofx[3]}`;
+  return'';
+}
+function inferFormaPagamento(desc){
+  const s=(desc||'').toLowerCase();
+  if(s.includes('pix'))return'pix';
+  if(s.includes('boleto'))return'boleto';
+  if(s.includes('ted')||s.includes('doc')||s.includes('transferên')||s.includes('transferen'))return'transferencia';
+  if(s.includes('débito')||s.includes('debito'))return'cartao_debito';
+  if(s.includes('crédito')||s.includes('credito')||s.includes('compra'))return'cartao_credito';
+  if(s.includes('saque')||s.includes('dinheiro')||s.includes('espécie')||s.includes('especie'))return'dinheiro';
+  return'outro';
+}
+function parseValorNum(raw){
+  if(raw==null)return 0;
+  let s=String(raw).trim();
+  if(s.includes(',')&&!s.includes('.'))s=s.replace(',','.');
+  else if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  return parseFloat(s)||0;
+}
+function parseCSVLine(line){
+  const out=[];let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(inQ){
+      if(ch==='"'){if(line[i+1]==='"'){cur+='"';i++}else inQ=false}
+      else cur+=ch;
+    }else{
+      if(ch==='"')inQ=true;
+      else if(ch===','||ch===';'){out.push(cur);cur=''}
+      else cur+=ch;
+    }
+  }
+  out.push(cur);
+  return out.map(s=>s.trim());
+}
+function parseExtratoCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2)return[];
+  const header=parseCSVLine(lines[0]).map(h=>h.toLowerCase());
+  const idxData=header.findIndex(h=>/^data$|^date$/.test(h));
+  const idxValor=header.findIndex(h=>/^valor$|^amount$/.test(h));
+  const idxDesc=header.findIndex(h=>/descri|title/.test(h));
+  if(idxData<0||idxValor<0)return[];
+  const isCartao=header.includes('title')&&!header.some(h=>/identificador/.test(h));
+  const out=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=parseCSVLine(lines[i]);
+    if(cols.length<2)continue;
+    const dataISO=brToISO(cols[idxData]);
+    const valor=parseValorNum(cols[idxValor]);
+    if(!dataISO||!valor)continue;
+    const descricao=idxDesc>=0?cols[idxDesc]:'Lançamento importado';
+    const tipo=isCartao?(valor>=0?'saida':'entrada'):(valor>=0?'entrada':'saida');
+    out.push({data:dataISO,descricao,valor:Math.abs(valor),tipo,banco:extratoBanco||'',formaPagamento:inferFormaPagamento(descricao),categoria:'',natureza:'empresa',cliente:'',status:'pago',desconto:0,hora:'',incluir:true});
+  }
+  return out;
+}
+function parseExtratoOFX(text){
+  const chunks=text.split(/<STMTTRN>/i).slice(1);
+  const out=[];
+  chunks.forEach(chunk=>{
+    const body=chunk.split(/<\/STMTTRN>/i)[0];
+    const get=tag=>{const m=body.match(new RegExp('<'+tag+'>([^<\\r\\n]+)','i'));return m?m[1].trim():''};
+    const dataISO=brToISO(get('DTPOSTED'));
+    const valor=parseValorNum(get('TRNAMT'));
+    if(!dataISO||!valor)return;
+    const descricao=get('MEMO')||get('NAME')||'Lançamento importado';
+    out.push({data:dataISO,descricao,valor:Math.abs(valor),tipo:valor>=0?'entrada':'saida',banco:extratoBanco||'',formaPagamento:inferFormaPagamento(descricao),categoria:'',natureza:'empresa',cliente:'',status:'pago',desconto:0,hora:'',incluir:true});
+  });
+  return out;
+}
+function processarExtratoArquivo(fileList){
+  const files=[...(fileList||[])];
+  if(!files.length)return;
+  const file=files[0];
+  $('#extratoStatus').innerHTML='<div class="empty">🔎 Lendo arquivo...</div>';
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const text=String(reader.result||'');
+      const isOfx=/\.ofx$|\.qfx$/i.test(file.name)||/<OFX>/i.test(text);
+      const lista=isOfx?parseExtratoOFX(text):parseExtratoCSV(text);
+      if(!lista.length){$('#extratoStatus').innerHTML='<div class="empty">Não encontrei lançamentos nesse arquivo. Confira se é um extrato OFX ou CSV exportado do banco.</div>';return}
+      extratoLancamentos=prepararRevisao(lista);
+      renderRevisaoExtrato();
+    }catch(e){
+      $('#extratoStatus').innerHTML=`<div class="empty">Erro ao ler o arquivo: ${esc(e.message||String(e))}</div>`;
+    }
+  };
+  reader.onerror=()=>{$('#extratoStatus').innerHTML='<div class="empty">Erro ao ler o arquivo.</div>'};
+  reader.readAsText(file,'utf-8');
 }
 function extratoPasteHandler(e){
   if(!$('#extratoFile'))return;
