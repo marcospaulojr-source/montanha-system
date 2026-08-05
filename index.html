@@ -289,7 +289,6 @@ button{font-family:inherit}
     <button data-v="cli"><span class="ic">👥</span><span class="lbl">Clientes</span></button>
     <button data-v="arq"><span class="ic">📦</span><span class="lbl">Arquivadas</span></button>
     <button data-v="fin"><span class="ic">$</span><span class="lbl">Financeiro</span></button>
-    <button data-v="inv"><span class="ic">🪙</span><span class="lbl">Investimentos</span></button>
   </nav>
   <div class="foot">
     <button class="sbtn" onclick="openSettings()">⚙️ <span class="lbl">Marca & configurações</span></button>
@@ -335,7 +334,7 @@ button{font-family:inherit}
     </section>
     <section class="view" id="cal">
       <div class="cal">
-        <div class="calnav"><span class="a" onclick="calMove(-1)">‹</span><span id="calLabel"></span><span class="a" onclick="calMove(1)">›</span></div>
+        <div class="calnav"><span class="a" onclick="calMove(-1)">‹</span><span id="calLabel"></span><span class="a" onclick="calMove(1)">›</span><span style="margin-left:auto;font-size:12px;font-weight:700;color:#1a73e8;cursor:pointer" onclick="gcalSyncMonth()">🔄 Sincronizar Google Agenda</span></div>
         <div class="hd"><div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div></div>
         <div class="bd" id="calBody"></div>
       </div>
@@ -356,6 +355,7 @@ button{font-family:inherit}
           <div class="chartbox"><h4>👤🏢 Pessoal x Empresa por mês</h4><div class="cv-wrap"><canvas id="chartFinNatureza"></canvas></div></div>
         </div>
       </div>
+      <div class="panel" style="margin-bottom:20px"><h2>🪙 Investimentos <span class="tag" id="invN">0</span><span class="tag" style="cursor:pointer;color:#0F766E;font-weight:700" onclick="addInvestimento()">＋ Novo investimento</span></h2><div class="stats" id="invStats" style="padding:6px 19px 0"></div><div class="plist" id="invList"></div></div>
       <div class="panel"><h2>💳 Lançamentos <span class="tag" id="finTag"></span><span class="tag" style="cursor:pointer;color:#DC2626;font-weight:700;margin-left:8px" onclick="clearFinanceiro()">Limpar todos</span></h2><div class="plist" id="finList"></div></div>
     </section>
     <section class="view" id="cli">
@@ -366,10 +366,6 @@ button{font-family:inherit}
     </section>
     <section class="view" id="arq">
       <div class="panel"><h2>📦 Tarefas finalizadas <span class="tag" id="arqN">0</span></h2><div class="plist" id="arqList"></div></div>
-    </section>
-    <section class="view" id="inv">
-      <div class="stats" id="invStats"></div>
-      <div class="panel"><h2>🪙 Investimentos <span class="tag" id="invN">0</span></h2><div class="plist" id="invList"></div></div>
     </section>
   </div>
 </div>
@@ -898,16 +894,46 @@ function renderCal(){
   $('#calLabel').textContent=calDate.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   let cells='';for(let i=0;i<first;i++)cells+='<div class="cell out"></div>';
   const tISO=todayISO();
+  const mesAtual=`${y}-${mo}`;
+  const gevsDoMes=gcalSyncedMonth===mesAtual?gcalEventsCache:[];
   for(let d=1;d<=days;d++){
     const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=c.videos.filter(v=>v.entrega===iso);
+    const gevs=gevsDoMes.filter(g=>g.dateISO===iso);
     cells+=`<div class="cell${iso===tISO?' today':''}"><div class="dn">${d}</div>
       ${evs.map(ev=>{const entry=(ev.historico||[]).filter(h=>h.estagio===ev.estagio).pop();const hora=entry&&entry.hora?' ('+entry.hora+')':'';const lbl=`${ev.cliente?ev.cliente+' — ':''}${ev.titulo} · ${shortLab(ev.estagio)}${hora}`;
-        return `<div class="ev" style="background:${EVC[ev.objetivo]}" onclick="openV('${ev.id}')" title="${ev.cliente?esc(ev.cliente)+' · ':''}${esc(ev.titulo)} · ${SLAB[ev.estagio]}${hora}">${esc(lbl.slice(0,34))}${lbl.length>34?'…':''}<div class="evbar"><span style="width:${stagePct(ev.estagio)}%"></span></div></div>`}).join('')}</div>`;
+        return `<div class="ev" style="background:${EVC[ev.objetivo]}" onclick="openV('${ev.id}')" title="${ev.cliente?esc(ev.cliente)+' · ':''}${esc(ev.titulo)} · ${SLAB[ev.estagio]}${hora}">${esc(lbl.slice(0,34))}${lbl.length>34?'…':''}<div class="evbar"><span style="width:${stagePct(ev.estagio)}%"></span></div></div>`}).join('')}
+      ${gevs.map(g=>{const lbl=`📅 ${g.hora?g.hora+' ':''}${g.titulo}`;
+        return `<div class="ev" style="background:#1a73e8" ${g.link?`onclick="window.open('${g.link}','_blank')"`:''} title="${esc(g.titulo)}${g.hora?' às '+g.hora:''} (Google Agenda)">${esc(lbl.slice(0,34))}${lbl.length>34?'…':''}</div>`}).join('')}</div>`;
   }
   $('#calBody').innerHTML=cells;
 }
-function calMove(d){calDate.setMonth(calDate.getMonth()+d);renderCal()}
+function calMove(d){calDate.setMonth(calDate.getMonth()+d);renderCal();if(gcalToken&&store.gcalClientId)gcalSyncMonth()}
+let gcalEventsCache=[];
+let gcalSyncedMonth='';
+function gcalSyncMonth(){
+  if(!store.gcalClientId){toast('⚠️ Configure o Google Client ID em "Marca & configurações" primeiro.');return}
+  withGcalAuth(async()=>{
+    const y=calDate.getFullYear(),mo=calDate.getMonth();
+    const timeMin=new Date(y,mo,1).toISOString();
+    const timeMax=new Date(y,mo+1,1).toISOString();
+    try{
+      const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime&maxResults=250`,{headers:{'Authorization':'Bearer '+gcalToken}});
+      const data=await res.json();
+      if(!res.ok){toast('Erro ao buscar eventos do Google Agenda');return}
+      gcalEventsCache=(data.items||[]).map(ev=>({
+        id:ev.id,
+        titulo:ev.summary||'(sem título)',
+        dateISO:(ev.start&&(ev.start.date||(ev.start.dateTime||'').slice(0,10)))||'',
+        hora:ev.start&&ev.start.dateTime?ev.start.dateTime.slice(11,16):'',
+        link:ev.htmlLink||''
+      })).filter(e=>e.dateISO);
+      gcalSyncedMonth=`${y}-${mo}`;
+      renderCal();
+      toast(`${gcalEventsCache.length} compromisso(s) do Google Agenda sincronizado(s) ✓`);
+    }catch(e){toast('Erro ao buscar eventos do Google Agenda')}
+  });
+}
 
 let finUndoStack=[];
 function snapshotFinanceiro(){
@@ -1112,7 +1138,7 @@ function renderFin(){
     const stLabel=st==='pago'?'Pago':st==='atrasado'?'Atrasado':'Pendente';
     const isIn=f.tipo==='entrada';
     return `<div class="prow"${f.origemVoz?' style="border-left:3px solid #7C3AED;background:#7C3AED14"':''} onclick="openFin('${f.id}')">
-      <div class="prow-top"><input type="checkbox" class="finselect" data-id="${f.id}" onclick="event.stopPropagation()" onchange="toggleFinSelecionado('${f.id}',this.checked)" ${finSelecionados.has(f.id)?'checked':''}><div class="thumb" style="background:${isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)'}">${isIn?'↑':'↓'}</div>
+      <div class="prow-top"><input type="checkbox" class="finselect" data-id="${f.id}" onclick="event.stopPropagation()" onchange="toggleFinSelecionado('${f.id}',this.checked)" ${finSelecionados.has(f.id)?'checked':''}><div class="thumb" style="background:${f.banco?'linear-gradient(135deg,'+bancoColor(f.banco)+','+bancoColor(f.banco)+'CC)':(isIn?'linear-gradient(135deg,var(--green),#0F766E)':'linear-gradient(135deg,#E11D48,#BE123C)')}" title="${f.banco?esc(f.banco):'Sem conta definida'}">${isIn?'↑':'↓'}</div>
         <div class="info">${f.cliente?`<div class="cliname">${esc(f.cliente)}</div>`:''}<div class="t">${esc(f.descricao||'(sem descrição)')}${finNatureza(f)==='pessoal'?' <span style="font-size:10.5px;font-weight:700;color:#F59E0B">👤 Pessoal</span>':' <span style="font-size:10.5px;font-weight:700;color:#0F766E">🏢 Empresa</span>'}${f.origemVoz?' <span style="font-size:10.5px;font-weight:700;color:#7C3AED">🎤 Entrada por comando de voz — conferir</span>':''}</div><div class="m">${finDate(f)?fmtD(finDate(f))+(f.hora?' às '+esc(f.hora):'')+' · ':''}${PAY_METHODS[f.formaPagamento]||''}${f.banco?' · '+bancoDot(f.banco)+esc(f.banco):''}${f.desconto?' · Desconto na fonte: '+mask(f.desconto):''}</div></div>
         ${st!=='pago'?`<span class="stagechip" style="background:${stColor}">${stLabel}</span>`:''}
         <button class="findel" onclick="event.stopPropagation();delFin('${f.id}')" title="Excluir lançamento">🗑️</button></div>
@@ -1211,9 +1237,9 @@ function bindDrag(){
   });
 }
 
-const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais'],arq:['Arquivadas','Tarefas finalizadas'],inv:['Investimentos','Posições em criptomoedas e outros ativos']};
-const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()'],arq:['＋ Nova tarefa','addVideo()'],inv:['＋ Novo investimento','addInvestimento()']};
-function go(v){if((v==='fin'||v==='inv')&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
+const TITLES={dash:['Dashboard','Visão geral da produção'],cli:['Clientes','Banco de dados de clientes'],pipe:['Timeline de Produção','Arraste os cards entre as etapas'],cal:['Calendário Editorial','Datas de entrega no mês'],fin:['Financeiro','Entradas, saídas e pendências'],prop:['Propostas','Orçamentos e propostas comerciais'],arq:['Arquivadas','Tarefas finalizadas']};
+const ADD_ACTIONS={dash:['＋ Nova tarefa','addVideo()'],cli:['＋ Novo cliente','newClient()'],pipe:['＋ Nova tarefa','addVideo()'],cal:['＋ Nova tarefa','addVideo()'],fin:['＋ Novo lançamento','addFinanceiro()'],prop:['＋ Nova proposta','addProposta()'],arq:['＋ Nova tarefa','addVideo()']};
+function go(v){if(v==='fin'&&!canViewFinanceiro)return;curView=v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#vTitle').textContent=TITLES[v][0];$('#vSub').textContent=TITLES[v][1];
   const btn=$('#addBtn');btn.style.display='flex';btn.textContent=ADD_ACTIONS[v][0];btn.setAttribute('onclick',ADD_ACTIONS[v][1]);
@@ -2600,8 +2626,6 @@ async function loadPermissions(){
   canViewFinanceiro=!!(data&&data.can_view_financeiro);
   const navBtn=document.querySelector('[data-v="fin"]');
   if(navBtn)navBtn.style.display=canViewFinanceiro?'':'none';
-  const navBtnInv=document.querySelector('[data-v="inv"]');
-  if(navBtnInv)navBtnInv.style.display=canViewFinanceiro?'':'none';
 }
 async function boot(){
   $('#loginwrap').classList.add('hidden');
