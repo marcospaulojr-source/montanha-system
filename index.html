@@ -1286,8 +1286,10 @@ function modalDraftHasContent(){
 async function closeM(){
   if(modalDraft&&modalDraftHasContent()){
     if(!(await confirmDialog('Esse lançamento ainda não foi salvo. Fechar mesmo assim e descartar o que foi preenchido?')))return;
+  }else if(!modalDraft&&propDraftIsDirty()){
+    if(!(await confirmDialog('Essa proposta tem alterações não salvas. Fechar mesmo assim e descartar as alterações?')))return;
   }
-  descartarModalDraft();$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}
+  descartarModalDraft();propDraft=null;propDraftSnapshot=null;$('#overlay').classList.remove('on');$('#modal').classList.remove('wide');if(typeof vozRecognition!=='undefined'&&vozRecognition){vozRecognition.stop();vozRecognition=null}
 }
 function confirmDialog(msg){
   return new Promise(resolve=>{
@@ -1880,6 +1882,10 @@ async function salvarPropComoNova(){
   toast('Nova proposta criada a partir deste modelo ✓');
 }
 let propDraft=null;
+let propDraftSnapshot=null;
+function propDraftIsDirty(){
+  return !!(propDraft&&propDraftSnapshot!=null&&JSON.stringify(propDraft)!==propDraftSnapshot);
+}
 function moveArrItem(key,from,to){
   const arr=propDraft[key];
   if(!arr||to<0||to>=arr.length||from===to)return;
@@ -2056,6 +2062,7 @@ function renderPropModal(){
 function openProp(id){
   const orig=store.propostas.find(x=>x.id===id);
   propDraft=JSON.parse(JSON.stringify(orig));
+  propDraftSnapshot=JSON.stringify(propDraft);
   renderPropModal();
 }
 function syncPropDraft(id){
@@ -2070,6 +2077,7 @@ function syncPropDraft(id){
 function saveProp(id){
   syncPropDraft(id);
   propDraft=null;
+  propDraftSnapshot=null;
   modalDraft=null;
   closeM();renderPropostas();toast('Proposta salva ✓');
 }
@@ -2199,7 +2207,8 @@ function gerarPropostaPDF(id){
       @page{size:A4;margin:0}
       html,body{height:100%}
       body{background:#fff}
-      .sheet{box-shadow:none;margin:0;max-width:none;height:297mm;min-height:297mm;border-radius:0;overflow:visible}
+      .sheet{box-shadow:none;margin:0;max-width:none;height:auto;min-height:0;border-radius:0;overflow:visible}
+      .sheet.onepage{height:297mm;min-height:297mm}
       .sec,.invwrap,.foot{page-break-inside:avoid;break-inside:avoid}
       .hero{padding:16px 40px 14px}
       .hero-top img{height:74px}
@@ -2272,6 +2281,15 @@ function gerarPropostaPDF(id){
     </div>
     <div class="foot"><span>Montanha Filmes · (22) 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
   </div>
+  <script>
+    window.addEventListener('beforeprint',function(){
+      var sheet=document.querySelector('.sheet');
+      if(!sheet)return;
+      sheet.classList.remove('onepage');
+      var onePagePx=297*96/25.4;
+      if(sheet.scrollHeight<=onePagePx)sheet.classList.add('onepage');
+    });
+  <\/script>
   </body></html>`);
   win.document.close();
   win.focus();
