@@ -2024,7 +2024,7 @@ function renderPropModal(){
         <div class="fld"><label>Prazo de entrega</label><input id="p_prazo" value="${esc(p.prazo||'')}" placeholder="Ex: Entrega digital em até 24h" onchange="propDraft.prazo=this.value"></div>
         <div class="fld"><label>Forma de pagamento</label><input id="p_pagamento" value="${esc(p.pagamento||'')}" placeholder="Ex: 50% na confirmação · 50% na entrega" onchange="propDraft.pagamento=this.value"></div>
       </div>
-      <div class="fld"><label>Observações (opcional)</label><textarea id="p_obs" placeholder="Anotações internas, condições extras...">${esc(p.observacoes)}</textarea></div>
+      <div class="fld"><label>Observações (opcional)</label><textarea id="p_obs" placeholder="Anotações internas, condições extras..." onchange="propDraft.observacoes=this.value">${esc(p.observacoes)}</textarea></div>
 
       <div class="fld"><label>Valor total manual (opcional)</label>
         <input type="number" min="0" step="0.01" id="p_valor_manual" value="${p.investimentoManual!=null?p.investimentoManual:''}" placeholder="Deixe em branco pra calcular pelos itens (qtd × valor unit.)" onchange="propDraft.investimentoManual=this.value===''?null:parseFloat(this.value)||0;updPropTotalDraft()">
@@ -2194,7 +2194,7 @@ function gerarPropostaPDF(id){
       @page{size:A4;margin:0}
       html,body{height:100%}
       body{background:#fff}
-      .sheet{box-shadow:none;margin:0;max-width:none;height:auto;min-height:0;border-radius:0;overflow:visible}
+      .sheet{box-shadow:none;margin:0;max-width:none;height:297mm;min-height:297mm;border-radius:0;overflow:visible}
       .sec,.invwrap,.foot{page-break-inside:avoid;break-inside:avoid}
       .hero{padding:16px 40px 14px}
       .hero-top img{height:74px}
