@@ -1314,7 +1314,7 @@ function confirmDialog(msg){
     $('#confirmCancelBtn').onclick=()=>cleanup(false);
   });
 }
-$('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeM()});
+$('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay'&&!propDraft)closeM()});
 
 function openV(id){
   const v=cur().videos.find(x=>x.id===id);const si=STAGES.findIndex(s=>s[0]===v.estagio);
@@ -2076,15 +2076,14 @@ function syncPropDraft(id){
 }
 function saveProp(id){
   syncPropDraft(id);
-  propDraft=null;
-  propDraftSnapshot=null;
+  propDraftSnapshot=JSON.stringify(propDraft);
   modalDraft=null;
-  closeM();renderPropostas();toast('Proposta salva ✓');
+  renderPropostas();toast('Proposta salva ✓ — clique no X pra fechar');
 }
 async function delProp(id){
   if(!(await confirmDialog('Excluir esta proposta?')))return;
   store.propostas=store.propostas.filter(x=>x.id!==id);
-  modalDraft=null;
+  modalDraft=null;propDraft=null;propDraftSnapshot=null;
   closeM();renderPropostas();toast('Proposta excluída');
   sb.from('propostas').delete().eq('id',id).then(sbErr);
 }
