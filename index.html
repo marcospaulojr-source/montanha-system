@@ -2058,16 +2058,20 @@ function openProp(id){
   propDraft=JSON.parse(JSON.stringify(orig));
   renderPropModal();
 }
-function saveProp(id){
+function syncPropDraft(id){
+  if(!propDraft||propDraft.id!==id)return;
   const p=propDraft;
   const c=calcProp(p);
   p.investimento=c.total;
   const idx=store.propostas.findIndex(x=>x.id===id);
   if(idx>=0)store.propostas[idx]=p;
+  sb.from('propostas').update(propToDb(p)).eq('id',id).then(sbErr);
+}
+function saveProp(id){
+  syncPropDraft(id);
   propDraft=null;
   modalDraft=null;
   closeM();renderPropostas();toast('Proposta salva ✓');
-  sb.from('propostas').update(propToDb(p)).eq('id',id).then(sbErr);
 }
 async function delProp(id){
   if(!(await confirmDialog('Excluir esta proposta?')))return;
@@ -2141,6 +2145,7 @@ function renderPropostas(){
   }).join('');
 }
 function gerarPropostaPDF(id){
+  syncPropDraft(id);
   const p=store.propostas.find(x=>x.id===id);
   const c=calcProp(p);
   const itemRows=(arr)=>{
@@ -2273,6 +2278,7 @@ function gerarPropostaPDF(id){
   setTimeout(()=>win.print(),400);
 }
 function enviarPropostaEmail(id){
+  syncPropDraft(id);
   const p=store.propostas.find(x=>x.id===id);
   if(!p.clienteEmail){toast('⚠️ Informe o e-mail do cliente antes de enviar');return;}
   const c=calcProp(p);
