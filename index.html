@@ -2290,7 +2290,7 @@ function gerarPropostaPDF(id){
       if(sheet){
         sheet.style.zoom='';
         sheet.classList.remove('onepage');
-        var onePagePx=297*96/25.4;
+        var onePagePx=297*96/25.4*0.92;
         var h=sheet.scrollHeight;
         if(h<=onePagePx){
           sheet.classList.add('onepage');
