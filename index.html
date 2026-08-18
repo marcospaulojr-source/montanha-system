@@ -2287,9 +2287,16 @@ function gerarPropostaPDF(id){
       printed=true;
       var sheet=document.querySelector('.sheet');
       if(sheet){
+        sheet.style.zoom='';
         sheet.classList.remove('onepage');
         var onePagePx=297*96/25.4;
-        if(sheet.scrollHeight<=onePagePx)sheet.classList.add('onepage');
+        var h=sheet.scrollHeight;
+        if(h<=onePagePx){
+          sheet.classList.add('onepage');
+        }else{
+          var scale=Math.max(0.55,(onePagePx/h)*0.99);
+          sheet.style.zoom=scale;
+        }
       }
       window.print();
     }
