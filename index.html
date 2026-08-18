@@ -2169,67 +2169,51 @@ function gerarPropostaPDF(id){
     *{box-sizing:border-box}
     body{font-family:'Space Grotesk',sans-serif;color:#191512;margin:0;background:#E9E5DE}
     .mono{font-family:'IBM Plex Mono',monospace}
-    .sheet{max-width:860px;min-height:1123px;margin:28px auto 60px;background:#FBFAF7;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(25,21,18,.14);display:flex;flex-direction:column}
-    .hero{background:#171310;color:#FBFAF7;padding:22px 44px 20px}
+    .pagewrap{margin:28px auto 60px;display:flex;justify-content:center;align-items:flex-start}
+    .sheet{width:210mm;background:#FBFAF7;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(25,21,18,.14);display:flex;flex-direction:column}
+    .hero{background:#171310;color:#FBFAF7;padding:16px 40px 14px}
     .hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-    .hero-top img{height:96px}
+    .hero-top img{height:74px}
     .hero-sub{font-size:11px;color:#8d857b}
     .hero-co{text-align:right;font-size:11px;line-height:1.7;color:#8d857b}
     .hero-tag{margin-top:16px;font-size:12px;letter-spacing:.24em;color:#F58D33}
-    .hero-title{margin-top:4px;font-weight:700;font-size:28px;line-height:1.08;letter-spacing:-0.02em}
-    .hero-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(141,133,123,.35)}
+    .hero-title{margin-top:4px;font-weight:700;font-size:24px;line-height:1.08;letter-spacing:-0.02em}
+    .hero-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-top:12px;padding-top:9px;border-top:1px solid rgba(141,133,123,.35)}
     .hero-meta .lab{font-size:10px;letter-spacing:.18em;color:#8d857b}
     .hero-meta .val{font-size:14px;font-weight:500;margin-top:4px}
-    .body{flex:1;padding:20px 44px;display:flex;flex-direction:column;gap:20px}
-    .sec{display:flex;flex-direction:column;gap:10px}
+    .body{flex:1;padding:14px 40px;display:flex;flex-direction:column;gap:13px}
+    .sec{display:flex;flex-direction:column;gap:6px}
     .sec-h{display:flex;align-items:baseline;gap:12px}
     .sec-n{font-size:11px;color:#F58D33}
-    .sec-t{margin:0;font-size:17px;font-weight:600}
+    .sec-t{margin:0;font-size:15px;font-weight:600}
     .empty{font-size:13px;color:#9a9285;padding:6px 2px}
-    .epills{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
-    .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:7px 12px;font-size:13.5px}
+    .epills{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+    .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:5px 10px;font-size:12.5px}
     .epill .ck{color:#F58D33;font-weight:700}
     .cond{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
     .cond h4{font-size:10px;letter-spacing:.18em;color:#9a9285;margin:0 0 4px}
-    .cond p{margin:0 0 14px;font-size:14px}
-    .invwrap{padding:0 44px 20px;display:flex;justify-content:flex-end}
-    .inv{width:320px;background:#171310;color:#FBFAF7;border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:9px}
+    .cond p{margin:0 0 10px;font-size:13px}
+    .invwrap{padding:0 40px 12px;display:flex;justify-content:flex-end}
+    .inv{width:320px;background:#171310;color:#FBFAF7;border-radius:12px;padding:13px 18px;display:flex;flex-direction:column;gap:6px}
     .inv-tag{font-size:11px;letter-spacing:.22em;color:#F58D33}
     .inv-row{display:flex;justify-content:space-between;font-size:13px;color:#b8b1a6}
-    .inv-total{border-top:1px solid rgba(251,250,247,.18);padding-top:14px;display:flex;flex-direction:column;gap:2px}
+    .inv-total{border-top:1px solid rgba(251,250,247,.18);padding-top:9px;display:flex;flex-direction:column;gap:2px}
     .inv-total .lab{font-size:12px;color:#b8b1a6}
-    .inv-total .val{font-size:30px;font-weight:700;letter-spacing:-0.02em;color:#F58D33}
-    .inv-stack{display:flex;flex-direction:column;gap:2px}
+    .inv-total .val{font-size:24px;font-weight:700;letter-spacing:-0.02em;color:#F58D33}
+    .inv-stack{display:flex;flex-direction:column;gap:0}
     .inv-stack .lab{font-size:12px;color:#b8b1a6}
-    .inv-stack .val{font-size:18px;font-weight:700;color:#FBFAF7}
-    .foot{display:flex;justify-content:space-between;gap:16px;padding:12px 44px;border-top:1px solid #E0DACF;font-size:10.5px;color:#9a9285}
+    .inv-stack .val{font-size:15px;font-weight:700;color:#FBFAF7}
+    .foot{display:flex;justify-content:space-between;gap:16px;padding:8px 40px;border-top:1px solid #E0DACF;font-size:10.5px;color:#9a9285}
     @media print{
       @page{size:A4;margin:0}
       html,body{height:100%}
       body{background:#fff}
-      .sheet{box-shadow:none;margin:0;max-width:none;height:auto;min-height:0;border-radius:0;overflow:visible}
-      .sheet.onepage{height:var(--onepage-h,297mm);min-height:var(--onepage-h,297mm)}
+      .pagewrap{margin:0}
+      .sheet{box-shadow:none;border-radius:0}
       .sec,.invwrap,.foot{page-break-inside:avoid;break-inside:avoid}
-      .hero{padding:16px 40px 14px}
-      .hero-top img{height:74px}
-      .hero-title{font-size:24px}
-      .hero-meta{margin-top:12px;padding-top:9px}
-      .body{padding:14px 40px;gap:13px}
-      .sec{gap:6px}
-      .sec-t{font-size:15px}
-      .epills{gap:4px 16px}
-      .epill{padding:5px 10px;font-size:12.5px}
-      .cond p{margin:0 0 10px;font-size:13px}
-      .invwrap{padding:0 40px 12px}
-      .inv{padding:13px 18px;gap:6px}
-      .inv-total{padding-top:9px}
-      .inv-total .val{font-size:24px}
-      .inv-stack{gap:0}
-      .inv-stack .val{font-size:15px}
-      .foot{padding:8px 40px}
     }
   </style></head><body>
-  <div class="sheet">
+  <div class="pagewrap"><div class="sheet">
     <div class="hero">
       <div class="hero-top">
         <div><img src="${MONTANHA_LOGO_B64}"><div class="hero-sub mono">produtora audiovisual</div></div>
@@ -2280,25 +2264,26 @@ function gerarPropostaPDF(id){
       </div>
     </div>
     <div class="foot"><span>Montanha Filmes · (22) 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
-  </div>
+  </div></div>
   <script>
     var printed=false;
     function doPrint(){
       if(printed)return;
       printed=true;
+      var wrap=document.querySelector('.pagewrap');
       var sheet=document.querySelector('.sheet');
-      if(sheet){
+      if(wrap&&sheet){
         sheet.style.zoom='';
-        sheet.classList.remove('onepage');
-        var pageMm=297*0.92;
-        var onePagePx=pageMm*96/25.4;
-        var h=sheet.scrollHeight;
-        if(h>onePagePx){
-          var scale=Math.max(0.55,(onePagePx/h)*0.99);
+        sheet.style.height='';
+        var pageHmm=297*0.94;
+        var pageHpx=pageHmm*96/25.4;
+        var naturalH=sheet.scrollHeight;
+        wrap.style.height=pageHmm+'mm';
+        if(naturalH>pageHpx){
+          var scale=Math.max(0.55,(pageHpx/naturalH)*0.995);
           sheet.style.zoom=scale;
         }
-        sheet.style.setProperty('--onepage-h',pageMm+'mm');
-        sheet.classList.add('onepage');
+        sheet.style.height='100%';
       }
       window.print();
     }
