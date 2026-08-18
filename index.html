@@ -2281,18 +2281,28 @@ function gerarPropostaPDF(id){
     <div class="foot"><span>Montanha Filmes · (22) 98846-1845 · @montanhafilmes</span><span>Rua Dr. Ernesto Brasílio, 14 · Nova Friburgo/RJ</span></div>
   </div>
   <script>
-    window.addEventListener('beforeprint',function(){
+    var printed=false;
+    function doPrint(){
+      if(printed)return;
+      printed=true;
       var sheet=document.querySelector('.sheet');
-      if(!sheet)return;
-      sheet.classList.remove('onepage');
-      var onePagePx=297*96/25.4;
-      if(sheet.scrollHeight<=onePagePx)sheet.classList.add('onepage');
-    });
+      if(sheet){
+        sheet.classList.remove('onepage');
+        var onePagePx=297*96/25.4;
+        if(sheet.scrollHeight<=onePagePx)sheet.classList.add('onepage');
+      }
+      window.print();
+    }
+    if(document.fonts&&document.fonts.ready){
+      document.fonts.ready.then(function(){requestAnimationFrame(function(){requestAnimationFrame(doPrint)})}).catch(doPrint);
+      setTimeout(doPrint,2500);
+    }else{
+      setTimeout(doPrint,600);
+    }
   <\/script>
   </body></html>`);
   win.document.close();
   win.focus();
-  setTimeout(()=>win.print(),400);
 }
 function enviarPropostaEmail(id){
   syncPropDraft(id);
