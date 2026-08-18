@@ -2208,7 +2208,7 @@ function gerarPropostaPDF(id){
       html,body{height:100%}
       body{background:#fff}
       .sheet{box-shadow:none;margin:0;max-width:none;height:auto;min-height:0;border-radius:0;overflow:visible}
-      .sheet.onepage{height:297mm;min-height:297mm}
+      .sheet.onepage{height:var(--onepage-h,297mm);min-height:var(--onepage-h,297mm)}
       .sec,.invwrap,.foot{page-break-inside:avoid;break-inside:avoid}
       .hero{padding:16px 40px 14px}
       .hero-top img{height:74px}
@@ -2290,14 +2290,15 @@ function gerarPropostaPDF(id){
       if(sheet){
         sheet.style.zoom='';
         sheet.classList.remove('onepage');
-        var onePagePx=297*96/25.4*0.92;
+        var pageMm=297*0.92;
+        var onePagePx=pageMm*96/25.4;
         var h=sheet.scrollHeight;
-        if(h<=onePagePx){
-          sheet.classList.add('onepage');
-        }else{
+        if(h>onePagePx){
           var scale=Math.max(0.55,(onePagePx/h)*0.99);
           sheet.style.zoom=scale;
         }
+        sheet.style.setProperty('--onepage-h',pageMm+'mm');
+        sheet.classList.add('onepage');
       }
       window.print();
     }
