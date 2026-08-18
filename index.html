@@ -2189,6 +2189,7 @@ function gerarPropostaPDF(id){
     .epills{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
     .epill{display:flex;align-items:center;gap:10px;background:#F2EFE9;border-radius:8px;padding:7px 12px;font-size:13.5px}
     .epill .ck{color:#F58D33;font-weight:700}
+    .cond{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
     .cond h4{font-size:10px;letter-spacing:.18em;color:#9a9285;margin:0 0 4px}
     .cond p{margin:0 0 14px;font-size:14px}
     .invwrap{padding:0 44px 20px;display:flex;justify-content:flex-end}
@@ -2262,9 +2263,9 @@ function gerarPropostaPDF(id){
       ${(p.prazo||p.pagamento||p.observacoes)?`<div class="sec">
         <div class="sec-h"><h2 class="sec-t">Condições</h2></div>
         <div class="cond">
-          ${p.prazo?`<h4 class="mono">PRAZO DE ENTREGA</h4><p>${esc(p.prazo)}</p>`:''}
-          ${p.pagamento?`<h4 class="mono">FORMA DE PAGAMENTO</h4><p>${esc(p.pagamento)}</p>`:''}
-          ${p.observacoes?`<h4 class="mono">OBSERVAÇÕES</h4><p style="white-space:pre-wrap">${esc(p.observacoes)}</p>`:''}
+          ${p.prazo?`<div><h4 class="mono">PRAZO DE ENTREGA</h4><p>${esc(p.prazo)}</p></div>`:''}
+          ${p.pagamento?`<div><h4 class="mono">FORMA DE PAGAMENTO</h4><p>${esc(p.pagamento)}</p></div>`:''}
+          ${p.observacoes?`<div style="grid-column:1/-1"><h4 class="mono">OBSERVAÇÕES</h4><p style="white-space:pre-wrap">${esc(p.observacoes)}</p></div>`:''}
         </div>
       </div>`:''}
     </div>
