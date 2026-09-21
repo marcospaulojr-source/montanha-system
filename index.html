@@ -232,6 +232,10 @@ button{font-family:inherit}
 .hist-empty{font-size:12.5px;color:var(--muted);padding:8px 2px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--navy);color:#fff;padding:13px 22px;border-radius:11px;font-size:14px;font-weight:600;box-shadow:0 12px 30px rgba(0,0,0,.3);z-index:60;transition:.35s}
 .toast.on{transform:translateX(-50%) translateY(0)}
+.backup-warn{position:fixed;top:0;left:0;right:0;background:#B45309;color:#fff;padding:10px 16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:14px;z-index:90;box-shadow:0 2px 10px rgba(0,0,0,.15);flex-wrap:wrap}
+.backup-warn button{background:#fff;color:#B45309;border:none;border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer}
+.backup-warn button:hover{opacity:.9}
+.backup-warn .x{background:none;color:#fff;font-size:16px;padding:0 4px;font-weight:400;opacity:.8}
 .tpl-tag{position:fixed;top:10px;right:12px;background:#0B2545;color:#fff;font-size:10px;font-weight:800;letter-spacing:.06em;padding:4px 10px;border-radius:20px;z-index:40;text-transform:uppercase}
 .color-row{display:flex;gap:8px;flex-wrap:wrap}
 .sw{width:30px;height:30px;border-radius:8px;cursor:pointer;border:2px solid transparent}
@@ -372,6 +376,11 @@ button{font-family:inherit}
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
+<div class="backup-warn hidden" id="backupWarn">
+  <span>⚠️ Backup de hoje ainda não foi feito.</span>
+  <button onclick="exportAll()">💾 Fazer backup agora</button>
+  <button class="x" onclick="dismissBackupWarn()" title="Lembrar mais tarde">✕</button>
+</div>
 </div>
 
 <script>
@@ -406,8 +415,8 @@ function finStatus(f){if(f.status==='pago')return'pago';if(f.vencimento&&f.venci
 const SLAB=Object.fromEntries(STAGES);
 const shortLab=k=>k==='modificacoes'?'Modificações':k==='envio_aprovacao'?'Enviado':SLAB[k];
 const EVC={autoridade:'#7C3AED',captacao:'#D97706',redes_sociais:'#0284C7',institucional:'#475569',reuniao:'#DB2777'};
-const SUPABASE_URL='https://painelmontanhafilmes-supabase.ev4wy7.easypanel.host';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgzNDI5Mjg2LCJleHAiOjIwOTg3ODkyODZ9.DTJ4yN6xpSBFF9pjZGerAPQu-GXNCBwKsgyV2Sfl3_I';
+const SUPABASE_URL='https://vyulrlonjbajaikdgixd.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5dWxybG9uamJhamFpa2RnaXhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MzYxODEsImV4cCI6MjEwMzIxMjE4MX0.JwcsqQp-X0POqYbCgqYA4dROnl9vDAA7zgiOZ4vbPms';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
@@ -532,8 +541,11 @@ async function autoArchivePublicados(){
   const jobs=[];
   (store.clients||[]).forEach(c=>(c.videos||[]).forEach(v=>{
     if(v.estagio!=='aprovacao'&&v.estagio!=='publicado')return;
-    const entry=(v.historico||[]).filter(h=>h.estagio===v.estagio).pop();
-    if(!entry||!entry.data||entry.data.slice(0,7)===curKey)return;
+    // Publicado arquiva na hora (legado que ficou parado na coluna); Aprovado só quando o mês vira.
+    if(v.estagio==='aprovacao'){
+      const entry=(v.historico||[]).filter(h=>h.estagio===v.estagio).pop();
+      if(!entry||!entry.data||entry.data.slice(0,7)===curKey)return;
+    }
     v.estagio='finalizado';
     logStage(v,'finalizado');
     jobs.push(sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',v.id));
@@ -544,6 +556,14 @@ function logStage(v,estagio){
   if(!v.historico)v.historico=[];
   const last=v.historico[v.historico.length-1];
   if(!last||last.estagio!==estagio)v.historico.push({estagio,data:todayISO(),hora:nowHora()});
+}
+// "Publicado" é o fim do pipeline: ao entrar nesse estágio o vídeo vai direto pra Arquivadas.
+// Registra "publicado" no histórico antes de "finalizado" pra manter a data de publicação
+// (usada no gráfico de publicações por mês). Retorna true se o vídeo foi arquivado.
+function setEstagio(v,estagio){
+  logStage(v,estagio);
+  if(estagio==='publicado'){v.estagio='finalizado';logStage(v,'finalizado');return true}
+  v.estagio=estagio;return false;
 }
 const ALL_ID='__todos__';
 function cur(){
@@ -1150,7 +1170,8 @@ function renderFin(){
   const filtResgates=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)==='pago'&&f.banco&&isReserva(f.banco.trim()));
   const filtAPagar=filtered.filter(f=>f.tipo==='saida'&&finStatus(f)!=='pago');
   const filtAReceber=filtered.filter(f=>f.tipo==='entrada'&&finStatus(f)!=='pago');
-  const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},resgate:{lab:'💸 Resgates',itens:filtResgates,vazio:'Nenhum resgate de reserva neste período.'},apagar:{lab:'📌 A pagar',itens:filtAPagar,vazio:'Nada a pagar neste período.'},areceber:{lab:'💰 A receber',itens:filtAReceber,vazio:'Nada a receber neste período.'}};
+  const filtImpostos=filtered.filter(f=>f.categoria==='imposto');
+  const grupos={saida:{lab:'↓ Saídas',itens:filtSaidas,vazio:'Nenhuma saída neste período.'},entrada:{lab:'↑ Entradas',itens:filtEntradas,vazio:'Nenhuma entrada neste período.'},resgate:{lab:'💸 Resgates',itens:filtResgates,vazio:'Nenhum resgate de reserva neste período.'},apagar:{lab:'📌 A pagar',itens:filtAPagar,vazio:'Nada a pagar neste período.'},areceber:{lab:'💰 A receber',itens:filtAReceber,vazio:'Nada a receber neste período.'},imposto:{lab:'🧾 Impostos',itens:filtImpostos,vazio:'Nenhum imposto lançado neste período.'}};
   if(!grupos[finGroupFilter])finGroupFilter='saida';
   const ordenarLista=lista=>{
     const arr=lista.map((f,i)=>({f,i}));
@@ -1168,9 +1189,21 @@ function renderFin(){
   </div>`;
   const ativo=grupos[finGroupFilter];
   const itensOrdenados=ordenarLista(ativo.itens);
+  finVisiveisIds=itensOrdenados.map(f=>f.id);
   [...finSelecionados].forEach(id=>{if(!F.some(f=>f.id===id))finSelecionados.delete(id)});
+  const todosVisiveisSelecionados=itensOrdenados.length>0&&itensOrdenados.every(f=>finSelecionados.has(f.id));
+  const selectAllHtml=itensOrdenados.length?`<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;padding:2px 2px 8px">
+    <input type="checkbox" ${todosVisiveisSelecionados?'checked':''} onchange="toggleSelecionarTodosVisiveis(this.checked)">
+    Selecionar todos${finFilter!=='all'&&finFilter!=='sem'?` de ${(() => {const[yy,mm]=finFilter.split('-');return MESES_ABR[parseInt(mm)-1]+'/'+yy})()}`:''} (${itensOrdenados.length})
+  </label>`:'';
   const bulkBarHtml=finSelecionados.size?`<div class="fin-bulkbar"><span>${finSelecionados.size} selecionado(s)</span><button onclick="limparFinSelecionados()">Limpar seleção</button><button onclick="openEditarFinSelecionados()">✏️ Editar selecionados</button><button class="del" onclick="excluirFinSelecionados()">🗑️ Excluir selecionados</button></div>`:'';
-  $('#finList').innerHTML=tabsHtml+groupTabsHtml+bulkBarHtml+(itensOrdenados.length?itensOrdenados.map(finRow).join(''):`<div class="empty">${ativo.vazio}</div>`);
+  $('#finList').innerHTML=tabsHtml+groupTabsHtml+selectAllHtml+bulkBarHtml+(itensOrdenados.length?itensOrdenados.map(finRow).join(''):`<div class="empty">${ativo.vazio}</div>`);
+}
+let finVisiveisIds=[];
+function toggleSelecionarTodosVisiveis(checked){
+  if(checked)finVisiveisIds.forEach(id=>finSelecionados.add(id));
+  else finVisiveisIds.forEach(id=>finSelecionados.delete(id));
+  renderFin();
 }
 let finFilter='all';
 function setFinFilter(k){finFilter=k;renderFin()}
@@ -1233,7 +1266,7 @@ function bindDrag(){
   $$('.col').forEach(col=>{
     col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag')});
     col.addEventListener('dragleave',()=>col.classList.remove('drag'));
-    col.addEventListener('drop',e=>{e.preventDefault();const v=cur().videos.find(x=>x.id===dragId);if(v){v.estagio=col.dataset.stage;logStage(v,v.estagio);render();toast('Movido para '+SLAB[col.dataset.stage]);sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',v.id).then(sbErr)}});
+    col.addEventListener('drop',e=>{e.preventDefault();const v=cur().videos.find(x=>x.id===dragId);if(v){const arq=setEstagio(v,col.dataset.stage);render();toast(arq?'📦 Publicado e movido para Arquivadas':'Movido para '+SLAB[col.dataset.stage]);sb.from('videos').update({estagio:v.estagio,historico:v.historico}).eq('id',v.id).then(sbErr)}});
   });
 }
 
@@ -1329,7 +1362,7 @@ function openV(id){
         <div class="fld"><label>Data de início</label><input type="date" id="e_inicio" value="${v.inicio||''}"></div>
         <div class="fld"><label>Data de entrega</label><input type="date" id="e_entrega" value="${v.entrega||''}"></div>
       </div>
-      <div class="fld"><label>Estágio</label><select id="e_est" onchange="toggleModsFld(this.value)">${STAGES.map(([k,l])=>`<option value="${k}" ${k===v.estagio?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="fld"><label>Estágio</label><select id="e_est" onchange="toggleModsFld(this.value)">${STAGES.map(([k,l])=>`<option value="${k}" ${k===v.estagio?'selected':''}>${l}</option>`).join('')}${v.estagio==='finalizado'?'<option value="finalizado" selected>📦 Arquivada</option>':''}</select></div>
       <div class="fld" id="fld_horaAgendado" style="${v.estagio==='agendado'?'':'display:none'}"><label>Horário agendado</label><input type="time" id="e_horaAgendado" value="${esc(v.horaAgendado||'')}"></div>
       <div class="fld" id="fld_mods" style="${v.estagio==='modificacoes'?'':'display:none'}"><label>Modificações solicitadas pelo cliente</label><textarea id="e_mods" placeholder="Ex: Trocar a trilha sonora, cortar os 5 segundos finais...">${esc(v.mods)}</textarea></div>
       <div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;font-size:13px;color:var(--text)"><input type="checkbox" id="e_enviado" ${v.enviado?'checked':''} onchange="toggleEnviadoFld(this.checked)" style="width:auto">Enviado para o cliente</label></div>
@@ -1359,14 +1392,14 @@ function saveV(id){
   v.titulo=$('#e_titulo').value.trim()||'(sem título)';v.objetivo=$('#e_obj').value;
   v.descricaoServico=$('#e_descServico').value.trim();
   v.inicio=$('#e_inicio').value||'';v.entrega=$('#e_entrega').value||'';
-  v.estagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
+  const novoEstagio=$('#e_est').value;v.roteiro=$('#e_rot').value.trim();
   v.horaAgendado=$('#e_horaAgendado')?$('#e_horaAgendado').value||'':(v.horaAgendado||'');
   v.mods=$('#e_mods')?$('#e_mods').value.trim():(v.mods||'');
   v.enviado=$('#e_enviado').checked;
   v.dataEnvio=v.enviado?($('#e_dataenvio').value||todayISO()):'';
-  logStage(v,v.estagio);
+  const arquivado=setEstagio(v,novoEstagio);
   modalDraft=null;
-  closeM();render();toast('Vídeo salvo ✓');
+  closeM();render();toast(arquivado?'📦 Vídeo publicado e arquivado':'Vídeo salvo ✓');
   sb.from('videos').update(videoToDb(v,(ownerOf(id)||cur()).id)).eq('id',id).then(sbErr);
 }
 async function delV(id){
@@ -2553,7 +2586,12 @@ async function writeBackupFile(dir,silent){
 async function exportAll(){
   const dir=await getBackupDirHandle();
   if(dir){
-    try{await writeBackupFile(dir,false);return}catch(e){console.error(e)}
+    try{
+      await writeBackupFile(dir,false);
+      lsSet('lastAutoBackupDate',todayISO());
+      checkBackupWarning();
+      return;
+    }catch(e){console.error(e)}
   }
   const json=JSON.stringify(store,null,2);
   const filename='backup-painel-completo-'+todayISO()+'.json';
@@ -2561,18 +2599,36 @@ async function exportAll(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=filename;a.click();
   toast('Backup completo exportado ✓');
+  lsSet('lastAutoBackupDate',todayISO());
+  checkBackupWarning();
 }
 async function maybeAutoBackup(){
   try{
-    if(lsGet('lastAutoBackupDate')===todayISO())return;
+    if(lsGet('lastAutoBackupDate')===todayISO()){checkBackupWarning();return}
     const handle=await idbGet('backupDir');
-    if(!handle)return;
+    if(!handle){checkBackupWarning();return}
     const perm=await handle.queryPermission({mode:'readwrite'});
-    if(perm!=='granted')return;
+    if(perm!=='granted'){checkBackupWarning();return}
     await writeBackupFile(handle,true);
     lsSet('lastAutoBackupDate',todayISO());
     toast('💾 Backup automático do dia salvo ✓');
   }catch(e){console.error('Falha no backup automático:',e)}
+  checkBackupWarning();
+}
+// ---- Aviso de backup diário pendente ----
+// A pasta de backup local (File System Access API) pode perder a permissão
+// silenciosamente entre sessões, fazendo o backup automático falhar sem
+// avisar ninguém. Este aviso garante que sempre fique visível quando o
+// backup de hoje ainda não foi confirmado, em vez de falhar em silêncio.
+function checkBackupWarning(){
+  const el=$('#backupWarn');if(!el)return;
+  const doneToday=lsGet('lastAutoBackupDate')===todayISO();
+  const dismissedToday=sessionStorage.getItem('backupWarnDismissed')===todayISO();
+  el.classList.toggle('hidden',doneToday||dismissedToday);
+}
+function dismissBackupWarn(){
+  try{sessionStorage.setItem('backupWarnDismissed',todayISO())}catch(e){}
+  checkBackupWarning();
 }
 
 // ---- Google Agenda ----

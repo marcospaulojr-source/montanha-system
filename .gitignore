@@ -3,3 +3,4 @@
 .claude/settings.local.json
 projetos-externos/
 cloudflare-worker/.wrangler/
+*.code-workspace
