@@ -2195,7 +2195,14 @@ function gerarPropostaPDF(id){
   const escopoHtml=(p.escopo||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
   const equipeHtml=(p.equipe||[]).filter(Boolean).map(e=>`<div class="epill"><span class="ck">✓</span><span>${esc(e)}</span></div>`).join('')||'';
   const mask2=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-  const win=window.open('','_blank');
+  // Imprime num iframe invisível em vez de aba nova: window.open('') + print() roda no mesmo
+  // processo do sistema e, no Chrome atual, a aba pisca e o sistema inteiro trava.
+  const oldFrame=document.getElementById('propPrintFrame');if(oldFrame)oldFrame.remove();
+  const frame=document.createElement('iframe');
+  frame.id='propPrintFrame';
+  frame.style.cssText='position:fixed;left:-10000px;top:0;width:1000px;height:1400px;border:0';
+  document.body.appendChild(frame);
+  const win=frame.contentWindow;
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta - ${esc(p.cliente)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -2329,7 +2336,10 @@ function gerarPropostaPDF(id){
   <\/script>
   </body></html>`);
   win.document.close();
-  win.focus();
+  // O nome sugerido do PDF vem do título da página principal.
+  const tituloOrig=document.title;
+  document.title='Proposta - '+(p.cliente||'');
+  win.addEventListener('afterprint',()=>{document.title=tituloOrig;setTimeout(()=>frame.remove(),0)});
 }
 function enviarPropostaEmail(id){
   syncPropDraft(id);
