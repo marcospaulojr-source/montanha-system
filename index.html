@@ -1626,6 +1626,11 @@ function fileToBase64(file){
   });
 }
 const EXTRATO_WORKER_URL='https://montanha-analisar-extrato.marcospaulojr.workers.dev';
+// O Worker só atende usuário logado: manda o access_token da sessão do Supabase.
+async function chamarExtratoWorker(payload){
+  const{data:{session}}=await sb.auth.getSession();
+  return fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+(session?session.access_token:'')},body:JSON.stringify(payload)});
+}
 function normFormaPagamento(v){return Object.keys(PAY_METHODS).includes(v)&&v!=='cartao'?v:'outro'}
 function normCategoria(v){return v==='imposto'?'imposto':''}
 function normNatureza(v){return v==='empresa'?'empresa':'pessoal'}
@@ -1639,7 +1644,7 @@ async function processarExtratos(fileList){
     for(let i=0;i<files.length;i++){
       $('#extratoStatus').innerHTML=`<div class="empty">🔎 Analisando imagem ${i+1} de ${files.length} com IA...</div>`;
       const image=await fileToBase64(files[i]);
-      const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image,mediaType:files[i].type||'image/png',hoje:todayISO(),banco:extratoBanco||''})});
+      const res=await chamarExtratoWorker({image,mediaType:files[i].type||'image/png',hoje:todayISO(),banco:extratoBanco||''});
       const data=await res.json();
       if(!res.ok||data.error)throw new Error(data.error||`Falha na análise da imagem ${i+1} (HTTP ${res.status})`);
       todos=todos.concat((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:extratoBanco||'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),cliente:normCliente(l.cliente),status:normStatus(l.status),desconto:0,hora:'',incluir:true})));
@@ -1804,7 +1809,7 @@ async function processarVoz(texto){
   $('#extratoStatus').innerHTML='<div class="empty">🔎 Interpretando com IA...</div>';
   try{
     const clientes=(store.clients||[]).map(c=>c.brand.name);
-    const res=await fetch(EXTRATO_WORKER_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:texto,hoje:todayISO(),contas:BANCOS,clientes})});
+    const res=await chamarExtratoWorker({text:texto,hoje:todayISO(),contas:BANCOS,clientes});
     const data=await res.json();
     if(!res.ok||data.error)throw new Error(data.error||`Falha na análise (HTTP ${res.status})`);
     extratoLancamentos=prepararRevisao((data.lancamentos||[]).map(l=>({data:l.data||todayISO(),descricao:l.descricao||'',valor:Number(l.valor)||0,tipo:l.tipo==='saida'?'saida':'entrada',banco:BANCOS.includes(l.banco)?l.banco:'',formaPagamento:normFormaPagamento(l.formaPagamento),categoria:normCategoria(l.categoria),natureza:normNatureza(l.natureza),cliente:normCliente(l.cliente),status:normStatus(l.status),desconto:0,hora:nowHora(),incluir:true})));
@@ -2749,7 +2754,7 @@ function scheduleRealtimeRefresh(){
 }
 function setupRealtime(){
   if(realtimeChannel)return;
-  const tables=['financeiro','videos','clients','saldos_iniciais','propostas','app_config'];
+  const tables=['financeiro','videos','clients','saldos_iniciais','propostas','app_config','investimentos'];
   let ch=sb.channel('montanha-realtime');
   tables.forEach(t=>{ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},()=>scheduleRealtimeRefresh())});
   ch.subscribe();

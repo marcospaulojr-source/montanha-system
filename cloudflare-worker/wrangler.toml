@@ -1,3 +1,8 @@
 name = "montanha-analisar-extrato"
 main = "worker.js"
 compatibility_date = "2026-07-01"
+
+# Usados só pra validar o login do usuário (a anon key é pública, já vai no index.html).
+[vars]
+SUPABASE_URL = "https://vyulrlonjbajaikdgixd.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5dWxybG9uamJhamFpa2RnaXhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MzYxODEsImV4cCI6MjEwMzIxMjE4MX0.JwcsqQp-X0POqYbCgqYA4dROnl9vDAA7zgiOZ4vbPms"

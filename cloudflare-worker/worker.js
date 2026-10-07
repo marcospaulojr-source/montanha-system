@@ -4,11 +4,34 @@
 // A chave da Anthropic fica só aqui como secret do Worker (ANTHROPIC_API_KEY),
 // nunca no index.html do app.
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Só o Montanha Studio pode chamar o Worker, e só com um usuário logado: o app manda o
+// access_token do Supabase e o Worker confere com o Supabase antes de gastar a chave da Anthropic.
+const ALLOWED_ORIGINS = ["https://montanhafilmes.com.br", "https://www.montanhafilmes.com.br"];
+// ~5 MB de imagem viram ~7 MB em base64; acima disso a Anthropic recusa de qualquer jeito.
+const MAX_BODY_BYTES = 7.5 * 1024 * 1024;
+
+function corsHeaders(request) {
+  const origin = request.headers.get("Origin") || "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers": "content-type, authorization",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
+  };
+}
+
+async function usuarioLogado(request, env) {
+  const auth = request.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return false;
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: auth },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 const RESPONSE_FORMAT = `{"lancamentos":[{"data":"YYYY-MM-DD","descricao":"texto curto","valor":123.45,"tipo":"entrada","formaPagamento":"pix","categoria":"","natureza":"empresa","status":"pago"}]}`;
 const TEXT_RESPONSE_FORMAT = `{"lancamentos":[{"data":"YYYY-MM-DD","descricao":"texto curto","valor":123.45,"tipo":"entrada","banco":"nome exato da conta ou vazio","cliente":"nome exato do cliente ou vazio","formaPagamento":"pix","categoria":"","natureza":"empresa","status":"pago"}]}`;
@@ -115,11 +138,21 @@ ${CAMPOS_EXTRAS}
 
 export default {
   async fetch(request, env) {
+    const cors = corsHeaders(request);
+    const json = (obj, status = 200) =>
+      new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
     if (request.method === "OPTIONS") {
-      return new Response("ok", { headers: CORS_HEADERS });
+      return new Response("ok", { headers: cors });
     }
     if (request.method !== "POST") {
       return json({ error: "Método não permitido" }, 405);
+    }
+    if (!(await usuarioLogado(request, env))) {
+      return json({ error: "Sessão expirada ou inválida. Saia e entre de novo no sistema." }, 401);
+    }
+    if (Number(request.headers.get("Content-Length") || 0) > MAX_BODY_BYTES) {
+      return json({ error: "Imagem grande demais (máx. ~5 MB). Tire um print menor ou corte a imagem." }, 413);
     }
 
     const apiKey = env.ANTHROPIC_API_KEY;
@@ -190,10 +223,3 @@ export default {
     return json({ lancamentos: parsed.lancamentos || [] });
   },
 };
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
-}
